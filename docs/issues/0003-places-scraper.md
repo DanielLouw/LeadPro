@@ -11,13 +11,13 @@ Each business record contains: name, address, phone number, website URL (if pres
 
 ## Acceptance criteria
 
-- [ ] `places_scraper` accepts a query string and max results cap, returns a list of raw business records
-- [ ] Each business record contains: name, formatted address, phone number, website URL (nullable), Google Maps URL, Place ID
-- [ ] Results are capped at the configured maximum — no overfetching
-- [ ] API errors (quota exceeded, invalid key, network failure) are caught and surfaced as a structured error, not an unhandled exception
-- [ ] Empty result sets are handled gracefully (returns empty list, no error)
-- [ ] Unit tests cover: successful result set, empty results, result cap enforcement, API error
-- [ ] No real network calls in tests — Google Places responses use fixture JSON
+- [x] `places_scraper` accepts a query string and max results cap, returns a list of raw business records
+- [x] Each business record contains: name, formatted address, phone number, website URL (nullable), Google Maps URL, Place ID
+- [x] Results are capped at the configured maximum — no overfetching
+- [x] API errors (quota exceeded, invalid key, network failure) are caught and surfaced as a structured error, not an unhandled exception
+- [x] Empty result sets are handled gracefully (returns empty list, no error)
+- [x] Unit tests cover: successful result set, empty results, result cap enforcement, API error
+- [x] No real network calls in tests — Google Places responses use fixture JSON
 
 ## Blocked by
 
