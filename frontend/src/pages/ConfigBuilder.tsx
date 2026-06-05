@@ -14,7 +14,7 @@ interface CustomBusinessType {
 }
 
 interface LoadedConfig {
-  queries?: string[]
+  queries?: unknown[]
   max_results_per_run?: number
 }
 
@@ -26,6 +26,7 @@ export default function ConfigBuilder() {
 
   // City selection
   const [selectedState, setSelectedState] = useState('')
+  const [citySelectValue, setCitySelectValue] = useState('')
   const [selectedCities, setSelectedCities] = useState<SelectedCity[]>([])
 
   // YAML output
@@ -75,6 +76,7 @@ export default function ConfigBuilder() {
 
   function handleStateChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setSelectedState(e.target.value)
+    setCitySelectValue('')
   }
 
   function handleCityChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -84,18 +86,18 @@ export default function ConfigBuilder() {
       if (prev.some(c => c.city === city && c.state === selectedState)) return prev
       return [...prev, { city, state: selectedState }]
     })
-    // Reset select back to placeholder
-    e.target.value = ''
+    // Reset city select back to placeholder
+    setCitySelectValue('')
   }
 
   function generateYaml() {
-    // Collect all selected types (from built-in and custom)
+    // Collect all selected types in display order: built-ins first, then custom
     const builtInSelected = businessTypes
       .flatMap(g => g.types)
       .filter(t => selectedTypes.has(t))
     const customSelected = customTypes
-      .filter(ct => ct.checked)
       .map(ct => ct.name)
+      .filter(name => selectedTypes.has(name))
     const allTypes = [...builtInSelected, ...customSelected]
 
     const queries: string[] = []
@@ -218,7 +220,6 @@ export default function ConfigBuilder() {
           id="state-select"
           value={selectedState}
           onChange={handleStateChange}
-          aria-label="Select state"
         >
           <option value="">-- select state --</option>
           {stateCities.map(s => (
@@ -231,9 +232,8 @@ export default function ConfigBuilder() {
         <label htmlFor="city-select">Select city</label>
         <select
           id="city-select"
+          value={citySelectValue}
           onChange={handleCityChange}
-          aria-label="Select city"
-          defaultValue=""
         >
           <option value="">-- select city --</option>
           {cityOptions.map(city => (
@@ -245,8 +245,8 @@ export default function ConfigBuilder() {
 
         {selectedCities.length > 0 && (
           <ul aria-label="Selected cities">
-            {selectedCities.map(c => (
-              <li key={`${c.city}-${c.state}`}>{c.city}, {c.state}</li>
+            {selectedCities.map((c, i) => (
+              <li key={`${i}:${c.city}:${c.state}`}>{c.city}, {c.state}</li>
             ))}
           </ul>
         )}
