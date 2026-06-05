@@ -58,6 +58,23 @@ npm run dev
 
 The dashboard will be available at `http://localhost:5173`.
 
+## Running tests
+
+### Backend
+
+```bash
+cd backend
+.venv\Scripts\activate
+python -m pytest
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm test
+```
+
 ## Project structure
 
 ```
@@ -67,12 +84,16 @@ backend/
     places_scraper/   # Google Places queries → raw business records
     lead_pipeline/    # Orchestrates scraping + analysis for a Run
     api/              # FastAPI HTTP layer
+  tests/              # pytest test suite (pytest-httpx for HTTP mocking)
   models.py           # SQLAlchemy ORM models (Runs, Leads, GapSignals, Notes)
   database.py         # DB session and init
   config.py           # Settings from .env
   main.py             # Uvicorn entry point
 frontend/
   src/
+    data/
+      businessTypes.ts    # Curated business types by vertical
+      stateCities.ts      # US state → major cities mapping
     pages/
       ConfigBuilder.tsx   # Build and trigger runs
       LeadResults.tsx     # Review and manage leads
