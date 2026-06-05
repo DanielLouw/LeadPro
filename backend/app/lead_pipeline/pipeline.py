@@ -1,0 +1,119 @@
+"""
+Lead pipeline: orchestrates scraping + gap analysis for a single Run.
+
+Input:  a Search Config (YAML string) + a run_id already persisted in the DB
+Output: persisted Lead rows ranked by gap_score DESC
+
+Only businesses with at least one hard gap signal are saved as Leads.
+"""
+
+import asyncio
+import logging
+
+import yaml
+from sqlalchemy.orm import Session
+
+from app.gap_analyzer.analyzer import analyze
+from app.models import GapSignal, Lead, Note, Run, RunStatus
+from app.places_scraper.scraper import RawBusiness, scrape_queries
+
+logger = logging.getLogger(__name__)
+
+# Concurrency cap for website analysis to avoid hammering targets
+_ANALYSIS_CONCURRENCY = 10
+
+
+async def execute_run(run_id: int, db: Session) -> None:
+    """Run the full pipeline for a given run_id. Updates run status on completion."""
+    run: Run | None = db.get(Run, run_id)
+    if run is None:
+        raise ValueError(f"Run {run_id} not found")
+
+    run.status = RunStatus.running.value
+    db.commit()
+
+    try:
+        config = yaml.safe_load(run.config_yaml)
+        queries: list[str] = config.get("queries", [])
+        max_results: int = config.get("max_results_per_run", 500)
+
+        raw_businesses = await scrape_queries(queries, max_results)
+        leads = await _analyze_businesses(raw_businesses)
+
+        for lead_data in leads:
+            lead = Lead(
+                run_id=run_id,
+                place_id=lead_data["place_id"],
+                name=lead_data["name"],
+                phone=lead_data["phone"],
+                address=lead_data["address"],
+                city=lead_data["city"],
+                state=lead_data["state"],
+                email=lead_data["email"],
+                website_url=lead_data["website_url"],
+                maps_url=lead_data["maps_url"],
+                gap_score=lead_data["gap_score"],
+                status="new",
+            )
+            db.add(lead)
+            db.flush()
+
+            for sig in lead_data["gap_signals"]:
+                db.add(
+                    GapSignal(
+                        lead_id=lead.id,
+                        signal_type=sig["signal_type"],
+                        is_hard=sig["is_hard"],
+                        description=sig["description"],
+                    )
+                )
+            db.add(Note(lead_id=lead.id, content=""))
+
+        run.total_leads = len(leads)
+        run.status = RunStatus.completed.value
+        db.commit()
+
+    except Exception as exc:
+        logger.exception("Run %d failed", run_id)
+        db.rollback()  # discard any partial leads flushed before the failure
+        run.status = RunStatus.failed.value
+        run.error_message = str(exc)
+        db.commit()
+        raise
+
+
+async def _analyze_businesses(raw: list[RawBusiness]) -> list[dict]:
+    """Analyze all businesses concurrently, returning only those with hard gap signals."""
+    semaphore = asyncio.Semaphore(_ANALYSIS_CONCURRENCY)
+
+    async def analyze_one(biz: RawBusiness) -> dict | None:
+        async with semaphore:
+            result = await analyze(biz.website_url)
+        if not result.qualifies_as_lead():
+            return None
+        return {
+            "place_id": biz.place_id,
+            "name": biz.name,
+            "phone": biz.phone,
+            "address": biz.address,
+            "city": biz.city,
+            "state": biz.state,
+            "email": None,
+            "website_url": biz.website_url,
+            "maps_url": biz.maps_url,
+            "gap_score": result.gap_score,
+            "gap_signals": [
+                {
+                    "signal_type": s.signal_type,
+                    "is_hard": s.is_hard,
+                    "description": s.description,
+                }
+                for s in result.gap_signals
+            ],
+        }
+
+    tasks = [analyze_one(biz) for biz in raw]
+    results = await asyncio.gather(*tasks)
+    leads = [r for r in results if r is not None]
+    leads.sort(key=lambda x: x["gap_score"], reverse=True)
+    return leads
