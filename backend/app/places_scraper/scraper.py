@@ -112,8 +112,8 @@ def _parse_city_state(formatted_address: str) -> tuple[str | None, str | None]:
     parts = [p.strip() for p in formatted_address.split(",")]
     # Typical US format: "123 Main St, City, ST 12345, USA"
     if len(parts) >= 3:
-        city = parts[-3] if len(parts) >= 3 else None
-        state_zip = parts[-2].strip() if len(parts) >= 2 else ""
+        city = parts[-3]
+        state_zip = parts[-2].strip()
         state = state_zip.split()[0] if state_zip else None
         return city, state
     return None, None
