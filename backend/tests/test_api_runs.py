@@ -1,0 +1,160 @@
+"""
+API tests for POST /runs (issue #0004).
+
+Uses FastAPI TestClient with all external calls mocked.
+Database is an isolated in-memory SQLite instance per test.
+"""
+
+import pytest
+from unittest.mock import patch, AsyncMock
+
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.api.main import app
+from app.database import get_db
+from app.models import Base, Run, Lead, GapSignal, RunStatus
+
+
+# ---------------------------------------------------------------------------
+# Database isolation fixture
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def test_db():
+    # StaticPool ensures all connections share the same in-memory database.
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    TestingSession = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+    def override_get_db():
+        db = TestingSession()
+        try:
+            yield db
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield TestingSession
+    app.dependency_overrides.pop(get_db, None)
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def client(test_db):
+    with TestClient(app, raise_server_exceptions=True) as c:
+        yield c
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+SAMPLE_CONFIG = "queries:\n  - plumbers in Austin TX\nmax_results_per_run: 10\n"
+
+
+# ---------------------------------------------------------------------------
+# POST /runs — basic creation
+# ---------------------------------------------------------------------------
+
+def test_post_runs_returns_201_with_run_id(client, test_db):
+    """POST /runs creates a run and returns id + pending status."""
+    with patch("app.api.routes.runs._run_pipeline", new_callable=AsyncMock):
+        resp = client.post("/runs/", json={"config_yaml": SAMPLE_CONFIG})
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert "id" in data
+    assert isinstance(data["id"], int)
+    assert data["status"] == "pending"
+    assert data["total_leads"] == 0
+
+
+def test_post_runs_persists_run_to_db(client, test_db):
+    """POST /runs persists the run to the database."""
+    with patch("app.api.routes.runs._run_pipeline", new_callable=AsyncMock):
+        resp = client.post("/runs/", json={"config_yaml": SAMPLE_CONFIG})
+
+    run_id = resp.json()["id"]
+    db = test_db()
+    try:
+        run = db.get(Run, run_id)
+        assert run is not None
+        assert run.config_yaml == SAMPLE_CONFIG
+    finally:
+        db.close()
+
+
+def test_post_runs_triggers_pipeline(client, test_db):
+    """POST /runs schedules the pipeline as a background task."""
+    with patch("app.api.routes.runs._run_pipeline", new_callable=AsyncMock) as mock_pipeline:
+        client.post("/runs/", json={"config_yaml": SAMPLE_CONFIG})
+    # Background tasks run synchronously in TestClient
+    mock_pipeline.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Pipeline integration: POST /runs with mocked pipeline execution
+# ---------------------------------------------------------------------------
+
+def test_post_runs_full_pipeline_mocked(client, test_db):
+    """
+    POST /runs with a mocked pipeline that writes leads directly:
+    verify GET /leads/run/{id} returns those leads.
+    """
+    biz_place_id = "place_x"
+    biz_name = "Pipeline Plumber"
+
+    async def mock_pipeline(run_id: int) -> None:
+        db = test_db()
+        try:
+            run = db.get(Run, run_id)
+            run.status = RunStatus.completed.value
+            lead = Lead(
+                run_id=run_id,
+                place_id=biz_place_id,
+                name=biz_name,
+                phone="(512) 555-9999",
+                address="5 Pine St, Austin, TX 78701, USA",
+                city="Austin",
+                state="TX",
+                website_url=None,
+                maps_url="https://maps/x",
+                gap_score=10.0,
+                status="new",
+            )
+            db.add(lead)
+            db.flush()
+            db.add(GapSignal(
+                lead_id=lead.id,
+                signal_type="no_website",
+                is_hard=True,
+                description="No website listed",
+            ))
+            run.total_leads = 1
+            db.commit()
+        finally:
+            db.close()
+
+    with patch("app.api.routes.runs._run_pipeline", side_effect=mock_pipeline):
+        post_resp = client.post("/runs/", json={"config_yaml": SAMPLE_CONFIG})
+
+    assert post_resp.status_code == 201
+    run_id = post_resp.json()["id"]
+
+    get_resp = client.get(f"/leads/run/{run_id}")
+    assert get_resp.status_code == 200
+    leads = get_resp.json()
+    assert len(leads) == 1
+    assert leads[0]["name"] == biz_name
+    assert leads[0]["gap_score"] == 10.0
+    assert leads[0]["gap_signals"][0]["signal_type"] == "no_website"

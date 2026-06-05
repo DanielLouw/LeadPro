@@ -78,7 +78,10 @@ async def execute_run(run_id: int, db: Session) -> None:
         db.rollback()  # discard any partial leads flushed before the failure
         run.status = RunStatus.failed.value
         run.error_message = str(exc)
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            logger.exception("Run %d: could not persist failed status", run_id)
         raise
 
 
@@ -113,7 +116,12 @@ async def _analyze_businesses(raw: list[RawBusiness]) -> list[dict]:
         }
 
     tasks = [analyze_one(biz) for biz in raw]
-    results = await asyncio.gather(*tasks)
-    leads = [r for r in results if r is not None]
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+    leads = []
+    for r in raw_results:
+        if isinstance(r, BaseException):
+            logger.warning("Business analysis failed, skipping: %s", r)
+        elif r is not None:
+            leads.append(r)
     leads.sort(key=lambda x: x["gap_score"], reverse=True)
     return leads
