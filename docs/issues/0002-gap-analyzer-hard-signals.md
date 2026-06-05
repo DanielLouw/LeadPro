@@ -17,13 +17,13 @@ The module is a pure function with no side effects. All external HTTP calls are 
 
 ## Acceptance criteria
 
-- [ ] `gap_analyzer` accepts a URL (or None) and returns a structured result: list of Gap Signals and a numeric Gap Score
-- [ ] Each Gap Signal has a type identifier, a severity (hard/soft), and a plain-English description suitable for display in the dashboard
-- [ ] All four hard signals are detected correctly
-- [ ] A business with no hard signals returns an empty signal list and a score of 0
-- [ ] Gap Score weights hard signals above soft signals (exact weights configurable, not hardcoded)
-- [ ] Unit tests cover: no URL, broken URL, HTTP-only site, PageSpeed below threshold, PageSpeed above threshold, API error from PageSpeed
-- [ ] No real network calls in tests — all HTTP responses use fixtures
+- [x] `gap_analyzer` accepts a URL (or None) and returns a structured result: list of Gap Signals and a numeric Gap Score
+- [x] Each Gap Signal has a type identifier, a severity (hard/soft), and a plain-English description suitable for display in the dashboard
+- [x] All four hard signals are detected correctly
+- [x] A business with no hard signals returns an empty signal list and a score of 0
+- [x] Gap Score weights hard signals above soft signals (exact weights configurable, not hardcoded)
+- [x] Unit tests cover: no URL, broken URL, HTTP-only site, PageSpeed below threshold, PageSpeed above threshold, API error from PageSpeed
+- [x] No real network calls in tests — all HTTP responses use fixtures
 
 ## Blocked by
 
