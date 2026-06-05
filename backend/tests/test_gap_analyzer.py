@@ -5,7 +5,7 @@ import pytest
 import httpx
 from unittest.mock import patch
 
-from app.gap_analyzer.analyzer import analyze, AnalysisResult
+from app.gap_analyzer.analyzer import analyze
 from app.config import settings
 
 
@@ -59,7 +59,6 @@ async def test_broken_website_non_2xx(httpx_mock):
     hard_signals = [s for s in result.gap_signals if s.is_hard]
     assert len(hard_signals) == 1
     assert hard_signals[0].signal_type == "broken_website"
-    assert hard_signals[0].is_hard is True  # test 3
 
 
 # ---------------------------------------------------------------------------

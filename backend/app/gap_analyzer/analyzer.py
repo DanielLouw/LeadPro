@@ -129,7 +129,7 @@ async def _fetch_html(client: httpx.AsyncClient, url: str) -> tuple[str | None, 
         if response.status_code >= 400:
             return None, True
         return response.text, False
-    except (httpx.RequestError, httpx.HTTPStatusError):
+    except httpx.RequestError:
         return None, True
 
 
@@ -140,7 +140,7 @@ async def _check_path_missing(client: httpx.AsyncClient, base_url: str, path: st
     try:
         resp = await client.get(url, headers={"User-Agent": "LeadPro/1.0"})
         return resp.status_code != 200
-    except (httpx.RequestError, httpx.HTTPStatusError):
+    except httpx.RequestError:
         return True
 
 
