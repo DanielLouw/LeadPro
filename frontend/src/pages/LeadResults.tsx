@@ -338,6 +338,29 @@ export default function LeadResults() {
     setSelectedLead(updated)
   }
 
+  // ── CSV export ──────────────────────────────────────────────────────────────
+
+  function handleExportCsv() {
+    if (selectedRunId == null) return
+    const url = `/api/runs/${selectedRunId}/leads/export`
+    fetch(url)
+      .then(r => {
+        if (!r.ok) throw new Error(`Export failed: ${r.status}`)
+        return r.blob()
+      })
+      .then(blob => {
+        const objectUrl = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = `leads_run_${selectedRunId}.csv`
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        URL.revokeObjectURL(objectUrl)
+      })
+      .catch(e => setError(e.message))
+  }
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -529,6 +552,10 @@ export default function LeadResults() {
               )}
             </p>
           </section>
+
+          <div style={{ marginBottom: '0.75rem' }}>
+            <button onClick={handleExportCsv}>Export CSV</button>
+          </div>
 
           <table aria-label="Lead results">
             <thead>

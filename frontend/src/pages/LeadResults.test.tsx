@@ -757,3 +757,62 @@ describe('LeadResults — progress indicator', () => {
     expect(screen.getByRole('combobox', { name: /sort by/i })).toHaveValue('name')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Issue #0010: CSV export
+// ---------------------------------------------------------------------------
+
+describe('LeadResults — Export CSV button', () => {
+  it('renders an Export CSV button when leads are present', async () => {
+    mockFetch(mockRun, mockLeads)
+
+    render(<LeadResults />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument()
+    )
+  })
+
+  it('calls the export endpoint and initiates a download when Export CSV is clicked', async () => {
+    // Single unified mock that handles runs, leads, and export
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/export')) {
+        return new Response('name,address\nAlpha Plumber,1 Main St\n', {
+          status: 200,
+          headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename=leads_run_1.csv' },
+        })
+      }
+      if (url.includes('/leads')) {
+        return new Response(JSON.stringify(mockLeads), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify([mockRun]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+
+    // Stub URL.createObjectURL so jsdom doesn't error
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+    globalThis.URL.revokeObjectURL = vi.fn()
+
+    const user = userEvent.setup()
+    render(<LeadResults />)
+
+    // Wait for button to appear (leads loaded)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByRole('button', { name: /export csv/i }))
+
+    // The export fetch call should have been made
+    await waitFor(() => {
+      const calls = fetchSpy.mock.calls.map(([url]) => (typeof url === 'string' ? url : url.toString()))
+      expect(calls.some(url => url.includes('/export'))).toBe(true)
+    })
+  })
+})
