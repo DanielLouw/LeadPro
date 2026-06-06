@@ -89,6 +89,27 @@ export default function LeadResults() {
     return [...hard, ...soft].slice(0, 3).map(s => s.signal_type.replace(/_/g, ' '))
   }
 
+  function handleExportCsv() {
+    if (selectedRunId == null) return
+    const url = `/api/runs/${selectedRunId}/leads/export`
+    fetch(url)
+      .then(r => {
+        if (!r.ok) throw new Error(`Export failed: ${r.status}`)
+        return r.blob()
+      })
+      .then(blob => {
+        const objectUrl = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = `leads_run_${selectedRunId}.csv`
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        URL.revokeObjectURL(objectUrl)
+      })
+      .catch(e => setError(e.message))
+  }
+
   return (
     <div>
       <h1>Lead Results</h1>
@@ -135,7 +156,11 @@ export default function LeadResults() {
       )}
 
       {leads.length > 0 && (
-        <table aria-label="Lead results">
+        <>
+          <div style={{ marginBottom: '0.75rem' }}>
+            <button onClick={handleExportCsv}>Export CSV</button>
+          </div>
+          <table aria-label="Lead results">
           <thead>
             <tr>
               <th>Name</th>
@@ -165,6 +190,7 @@ export default function LeadResults() {
             ))}
           </tbody>
         </table>
+        </>
       )}
     </div>
   )

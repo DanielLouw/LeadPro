@@ -1,9 +1,6 @@
-import csv
-import io
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
@@ -114,42 +111,3 @@ def upsert_lead_note(lead_id: int, body: UpdateNoteRequest, db: Session = Depend
     return lead
 
 
-@router.get("/run/{run_id}/export/csv")
-def export_leads_csv(run_id: int, db: Session = Depends(get_db)):
-    leads = (
-        db.query(Lead)
-        .options(*_lead_options())
-        .filter(Lead.run_id == run_id)
-        .order_by(Lead.gap_score.desc())
-        .all()
-    )
-
-    output = io.StringIO()
-    writer = csv.DictWriter(
-        output,
-        fieldnames=["name", "address", "city", "state", "phone", "email", "gap_score", "gap_signals", "status", "notes"],
-    )
-    writer.writeheader()
-    for lead in leads:
-        signals_str = "; ".join(s.description for s in lead.gap_signals)
-        writer.writerow(
-            {
-                "name": lead.name,
-                "address": lead.address or "",
-                "city": lead.city or "",
-                "state": lead.state or "",
-                "phone": lead.phone or "",
-                "email": lead.email or "",
-                "gap_score": lead.gap_score,
-                "gap_signals": signals_str,
-                "status": lead.status,
-                "notes": lead.note.content if lead.note else "",
-            }
-        )
-
-    output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=leads_run_{run_id}.csv"},
-    )
