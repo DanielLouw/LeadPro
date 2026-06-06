@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react'
+import Spinner from '../components/Spinner'
+import type { ToastType } from '../components/Toast'
 
 interface GapSignal {
   id: number
@@ -31,9 +33,10 @@ interface Props {
   lead: Lead
   onClose: () => void
   onLeadUpdated: (updated: Lead) => void
+  onToast?: (message: string, type?: ToastType) => void
 }
 
-export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props) {
+export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast }: Props) {
   const [notesValue, setNotesValue] = useState(lead.note?.content ?? '')
   const [savingStatus, setSavingStatus] = useState(false)
   const [savingNotes, setSavingNotes] = useState(false)
@@ -52,6 +55,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
       if (resp.ok) {
         const updated: Lead = await resp.json()
         onLeadUpdated(updated)
+        onToast?.('Status saved')
+      } else {
+        onToast?.('Failed to save status', 'error')
       }
     } finally {
       setSavingStatus(false)
@@ -60,6 +66,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
 
   async function handleNotesBlur() {
     if (notesValue === initialNote.current) return
+    if (savingNotes) return
     setSavingNotes(true)
     try {
       const resp = await fetch(`/api/leads/${lead.id}/notes`, {
@@ -71,6 +78,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
         const updated: Lead = await resp.json()
         initialNote.current = notesValue
         onLeadUpdated(updated)
+        onToast?.('Notes saved')
+      } else {
+        onToast?.('Failed to save notes', 'error')
       }
     } finally {
       setSavingNotes(false)
@@ -143,17 +153,20 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
         <label htmlFor={`status-${lead.id}`} style={{ display: 'block', marginBottom: '0.25rem' }}>
           Status
         </label>
-        <select
-          id={`status-${lead.id}`}
-          aria-label="Status"
-          value={lead.status}
-          disabled={savingStatus}
-          onChange={e => handleStatusChange(e.target.value)}
-        >
-          {VALID_STATUSES.map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <select
+            id={`status-${lead.id}`}
+            aria-label="Status"
+            value={lead.status}
+            disabled={savingStatus}
+            onChange={e => handleStatusChange(e.target.value)}
+          >
+            {VALID_STATUSES.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          {savingStatus && <Spinner />}
+        </div>
       </section>
 
       <section aria-label="Notes" style={{ margin: '1rem 0' }}>
@@ -170,6 +183,13 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
           onChange={e => setNotesValue(e.target.value)}
           onBlur={handleNotesBlur}
         />
+        <button
+          onClick={() => handleNotesBlur()}
+          disabled={savingNotes}
+          style={{ marginTop: '0.5rem' }}
+        >
+          {savingNotes ? <><Spinner />Saving…</> : 'Save notes'}
+        </button>
       </section>
     </div>
   )
