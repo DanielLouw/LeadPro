@@ -217,3 +217,107 @@ describe('LeadResults — no leads for run', () => {
     )
   })
 })
+
+// ---------------------------------------------------------------------------
+// Issue #0006: cost estimate panel + confirmation dialog before run
+// ---------------------------------------------------------------------------
+
+describe('LeadResults — start run with cost estimate', () => {
+  const estimateResponse = {
+    query_count: 2,
+    estimated_results: 40,
+    estimated_cost_usd: 0.064,
+  }
+
+  function mockFetchWithEstimate() {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/runs/estimate')) {
+        return new Response(JSON.stringify(estimateResponse), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('/leads')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('/runs/') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ id: 99, status: 'pending', total_leads: 0, config_yaml: '', error_message: null }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      // GET /runs/
+      return new Response(JSON.stringify([mockRun]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+  }
+
+  it('shows a "Start new run" button that fetches a cost estimate before submitting', async () => {
+    const user = userEvent.setup()
+    mockFetchWithEstimate()
+
+    render(<LeadResults />)
+
+    // Wait for runs to load
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
+    )
+
+    // Click "Start new run" — should show estimate panel
+    await user.click(screen.getByRole('button', { name: /start new run/i }))
+
+    // Estimate panel should appear with query count, results, and cost
+    await waitFor(() =>
+      expect(screen.getByText(/2 queries/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText(/40 results/i)).toBeInTheDocument()
+    expect(screen.getByText(/\$0\.064/i)).toBeInTheDocument()
+  })
+
+  it('requires a confirm action before submitting the run to the backend', async () => {
+    const user = userEvent.setup()
+    mockFetchWithEstimate()
+
+    render(<LeadResults />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByRole('button', { name: /start new run/i }))
+
+    // Wait for estimate to load
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument()
+    )
+
+    // POST /runs/ should NOT have been called yet
+    const postCalls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (args: unknown[]) => {
+        const url = args[0]
+        const init = args[1] as RequestInit | undefined
+        return typeof url === 'string' && url.includes('/runs/') && !url.includes('/estimate') && init?.method === 'POST'
+      }
+    )
+    expect(postCalls).toHaveLength(0)
+
+    // Click confirm — now the run is submitted
+    await user.click(screen.getByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => {
+      const allCalls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls
+      const submitted = allCalls.some((args: unknown[]) => {
+        const url = args[0]
+        const init = args[1] as RequestInit | undefined
+        return typeof url === 'string' && url.includes('/runs/') && !url.includes('/estimate') && init?.method === 'POST'
+      })
+      expect(submitted).toBe(true)
+    })
+  })
+})

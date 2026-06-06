@@ -3,6 +3,8 @@ import * as yaml from 'js-yaml'
 import { businessTypes } from '../data/businessTypes'
 import { stateCities } from '../data/stateCities'
 
+const DEFAULT_MAX_RESULTS = 500
+
 interface SelectedCity {
   city: string
   state: string
@@ -28,6 +30,9 @@ export default function ConfigBuilder() {
   const [selectedState, setSelectedState] = useState('')
   const [citySelectValue, setCitySelectValue] = useState('')
   const [selectedCities, setSelectedCities] = useState<SelectedCity[]>([])
+
+  // Max results cap (issue #0006)
+  const [maxResults, setMaxResults] = useState(DEFAULT_MAX_RESULTS)
 
   // YAML output
   const [generatedYaml, setGeneratedYaml] = useState('')
@@ -109,7 +114,7 @@ export default function ConfigBuilder() {
 
     const config = {
       queries,
-      max_results_per_run: 500,
+      max_results_per_run: maxResults,
     }
 
     setGeneratedYaml(yaml.dump(config))
@@ -161,6 +166,11 @@ export default function ConfigBuilder() {
       setSelectedTypes(newSelectedTypes)
       setCustomTypes(newCustomTypes)
       setSelectedCities(newSelectedCities)
+
+      // Restore cap from loaded config, fall back to default
+      if (typeof parsed.max_results_per_run === 'number') {
+        setMaxResults(parsed.max_results_per_run)
+      }
     } catch {
       setLoadError('Invalid YAML: could not parse config')
     }
@@ -250,6 +260,19 @@ export default function ConfigBuilder() {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* Max results cap (issue #0006) */}
+      <section>
+        <label htmlFor="max-results-cap">Max results cap</label>
+        <input
+          id="max-results-cap"
+          type="number"
+          min={1}
+          value={maxResults}
+          onChange={e => setMaxResults(Number(e.target.value))}
+          aria-label="Max results cap"
+        />
       </section>
 
       {/* Generate YAML */}
