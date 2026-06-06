@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import * as yaml from 'js-yaml'
+import { useNavigate } from 'react-router-dom'
 import { businessTypes } from '../data/businessTypes'
 import { stateCities } from '../data/stateCities'
 
@@ -15,12 +16,21 @@ interface CustomBusinessType {
   checked: boolean
 }
 
-interface LoadedConfig {
-  queries?: unknown[]
-  max_results_per_run?: number
+interface RunEstimate {
+  query_count: number
+  estimated_results: number
+  estimated_cost_usd: number
 }
 
+type Step =
+  | { kind: 'editing' }
+  | { kind: 'estimating' }
+  | { kind: 'confirm'; estimate: RunEstimate; configYaml: string }
+  | { kind: 'submitting'; estimate: RunEstimate; configYaml: string }
+
 export default function ConfigBuilder() {
+  const navigate = useNavigate()
+
   // Business type selection — keyed by type name
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set())
   const [customTypes, setCustomTypes] = useState<CustomBusinessType[]>([])
@@ -31,15 +41,13 @@ export default function ConfigBuilder() {
   const [citySelectValue, setCitySelectValue] = useState('')
   const [selectedCities, setSelectedCities] = useState<SelectedCity[]>([])
 
-  // Max results cap (issue #0006)
+  // Max results cap
   const [maxResults, setMaxResults] = useState(DEFAULT_MAX_RESULTS)
 
-  // YAML output
-  const [generatedYaml, setGeneratedYaml] = useState('')
-
-  // Load config
-  const [loadConfigText, setLoadConfigText] = useState('')
-  const [loadError, setLoadError] = useState('')
+  // Launch flow state machine
+  const [step, setStep] = useState<Step>({ kind: 'editing' })
+  const [runError, setRunError] = useState<string | null>(null)
+  const estimatingRef = useRef(false)
 
   // Derive city options for selected state
   const stateEntry = stateCities.find(s => s.abbreviation === selectedState)
@@ -91,12 +99,11 @@ export default function ConfigBuilder() {
       if (prev.some(c => c.city === city && c.state === selectedState)) return prev
       return [...prev, { city, state: selectedState }]
     })
-    // Reset city select back to placeholder
     setCitySelectValue('')
   }
 
-  function generateYaml() {
-    // Collect all selected types in display order: built-ins first, then custom
+  /** Build config YAML from current selections (internal use only). */
+  function buildConfigYaml(): string {
     const builtInSelected = businessTypes
       .flatMap(g => g.types)
       .filter(t => selectedTypes.has(t))
@@ -112,68 +119,63 @@ export default function ConfigBuilder() {
       }
     }
 
-    const config = {
-      queries,
-      max_results_per_run: maxResults,
-    }
-
-    setGeneratedYaml(yaml.dump(config))
+    return yaml.dump({ queries, max_results_per_run: maxResults })
   }
 
-  function loadConfig() {
-    setLoadError('')
+  async function handleRun() {
+    if (estimatingRef.current) return
+    estimatingRef.current = true
+    setRunError(null)
+    const configYaml = buildConfigYaml()
+    setStep({ kind: 'estimating' })
+
     try {
-      const parsed = yaml.load(loadConfigText) as LoadedConfig
-      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.queries)) {
-        setLoadError('Invalid config: missing queries array')
-        return
+      const resp = await fetch('/api/runs/estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config_yaml: configYaml }),
+      })
+      if (!resp.ok) {
+        const detail = await resp.json().catch(() => ({ detail: 'Unknown error' }))
+        throw new Error(detail.detail ?? `Estimate failed: ${resp.status}`)
       }
-
-      const newSelectedTypes = new Set<string>()
-      const newSelectedCities: SelectedCity[] = []
-
-      for (const query of parsed.queries) {
-        if (typeof query !== 'string') continue
-        const inIdx = query.lastIndexOf(' in ')
-        if (inIdx === -1) continue
-
-        const typePart = query.substring(0, inIdx)
-        const locationPart = query.substring(inIdx + 4)
-
-        // Parse "City ST" or "City Name ST" — last word is state abbreviation
-        const locationParts = locationPart.trim().split(' ')
-        const stateAbbr = locationParts[locationParts.length - 1]
-        const cityName = locationParts.slice(0, -1).join(' ')
-
-        // Add business type
-        newSelectedTypes.add(typePart)
-
-        // Add city if not already added
-        if (!newSelectedCities.some(c => c.city === cityName && c.state === stateAbbr)) {
-          newSelectedCities.push({ city: cityName, state: stateAbbr })
-        }
-      }
-
-      // Determine which types are built-in vs custom
-      const allBuiltInTypes = new Set(businessTypes.flatMap(g => g.types))
-      const newCustomTypes: CustomBusinessType[] = []
-      for (const t of newSelectedTypes) {
-        if (!allBuiltInTypes.has(t)) {
-          newCustomTypes.push({ name: t, checked: true })
-        }
-      }
-
-      setSelectedTypes(newSelectedTypes)
-      setCustomTypes(newCustomTypes)
-      setSelectedCities(newSelectedCities)
-
-      // Restore cap from loaded config, fall back to default
-      if (typeof parsed.max_results_per_run === 'number') {
-        setMaxResults(parsed.max_results_per_run)
-      }
-    } catch {
-      setLoadError('Invalid YAML: could not parse config')
+      const estimate: RunEstimate = await resp.json()
+      setStep({ kind: 'confirm', estimate, configYaml })
+    } catch (e: unknown) {
+      setRunError(e instanceof Error ? e.message : String(e))
+      setStep({ kind: 'editing' })
+    } finally {
+      estimatingRef.current = false
     }
+  }
+
+  async function handleConfirmRun() {
+    if (step.kind !== 'confirm') return
+    const { estimate, configYaml } = step
+    setStep({ kind: 'submitting', estimate, configYaml })
+    setRunError(null)
+
+    try {
+      const resp = await fetch('/api/runs/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config_yaml: configYaml }),
+      })
+      if (!resp.ok) {
+        const detail = await resp.json().catch(() => ({ detail: 'Unknown error' }))
+        throw new Error(detail.detail ?? `Failed to start run: ${resp.status}`)
+      }
+      const newRun = await resp.json()
+      navigate('/leads', { state: { runId: newRun.id } })
+    } catch (e: unknown) {
+      setRunError(e instanceof Error ? e.message : String(e))
+      setStep({ kind: 'confirm', estimate, configYaml })
+    }
+  }
+
+  function handleCancel() {
+    setStep({ kind: 'editing' })
+    setRunError(null)
   }
 
   return (
@@ -262,7 +264,7 @@ export default function ConfigBuilder() {
         )}
       </section>
 
-      {/* Max results cap (issue #0006) */}
+      {/* Max results cap */}
       <section>
         <label htmlFor="max-results-cap">Max results cap</label>
         <input
@@ -275,36 +277,46 @@ export default function ConfigBuilder() {
         />
       </section>
 
-      {/* Generate YAML */}
-      <section>
-        <button onClick={generateYaml}>Generate YAML</button>
-        <label htmlFor="generated-yaml">Generated YAML</label>
-        <textarea
-          id="generated-yaml"
-          aria-label="Generated YAML"
-          value={generatedYaml}
-          readOnly
-          rows={10}
-          cols={60}
-        />
-      </section>
+      {/* Launch flow */}
+      {step.kind === 'editing' && (
+        <section>
+          <button
+            onClick={handleRun}
+            disabled={selectedTypes.size === 0 || selectedCities.length === 0}
+          >
+            Run
+          </button>
+          {runError && <p role="alert" style={{ color: 'red' }}>{runError}</p>}
+        </section>
+      )}
 
-      {/* Load Config */}
-      <section>
-        <h2>Load Config</h2>
-        <label htmlFor="load-config">Load Config</label>
-        <textarea
-          id="load-config"
-          aria-label="Load Config"
-          value={loadConfigText}
-          onChange={e => setLoadConfigText(e.target.value)}
-          rows={10}
-          cols={60}
-          placeholder="Paste YAML config here..."
-        />
-        <button onClick={loadConfig}>Load Config</button>
-        {loadError && <div role="alert">{loadError}</div>}
-      </section>
+      {step.kind === 'estimating' && (
+        <section aria-label="Estimating cost">
+          <p>Estimating&hellip;</p>
+          <button onClick={handleCancel}>Cancel</button>
+        </section>
+      )}
+
+      {(step.kind === 'confirm' || step.kind === 'submitting') && (
+        <section aria-label="Run cost estimate">
+          <h2>Estimated Cost</h2>
+          <p>{step.estimate.query_count} queries</p>
+          <p>{step.estimate.estimated_results} results</p>
+          <p>${step.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
+          <div>
+            <button
+              onClick={handleConfirmRun}
+              disabled={step.kind === 'submitting'}
+            >
+              {step.kind === 'submitting' ? 'Starting…' : 'Confirm & start run'}
+            </button>
+            <button onClick={handleCancel} disabled={step.kind === 'submitting'}>
+              Cancel
+            </button>
+          </div>
+          {runError && <p role="alert" style={{ color: 'red' }}>{runError}</p>}
+        </section>
+      )}
     </div>
   )
 }

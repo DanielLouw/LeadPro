@@ -1,7 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import LeadResults from './LeadResults'
+
+// Helper to render LeadResults inside a MemoryRouter with optional router state
+function renderLeadResults(routerState?: Record<string, unknown>) {
+  const initialEntries = routerState
+    ? [{ pathname: '/leads', state: routerState }]
+    : ['/leads']
+  return render(
+    <MemoryRouter initialEntries={initialEntries} initialIndex={0}>
+      <LeadResults />
+    </MemoryRouter>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -82,9 +95,16 @@ function mockFetch(
         headers: { 'Content-Type': 'application/json' },
       })
     }
-    // runs list
-    return new Response(JSON.stringify(runsList), {
-      status: 200,
+    // runs list — only match the exact runs endpoint
+    if (url === '/api/runs/' || url.endsWith('/api/runs/')) {
+      return new Response(JSON.stringify(runsList), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    // Unrecognised URL — return 404 so tests fail loudly instead of silently
+    return new Response(JSON.stringify({ detail: `Unrecognised mock URL: ${url}` }), {
+      status: 404,
       headers: { 'Content-Type': 'application/json' },
     })
   })
@@ -99,16 +119,16 @@ afterEach(() => {
 })
 
 // ---------------------------------------------------------------------------
-// Tests — existing behaviour (preserved)
+// Tests â€” existing behaviour (preserved)
 // ---------------------------------------------------------------------------
 
-describe('LeadResults — empty state (no runs)', () => {
+describe('LeadResults â€” empty state (no runs)', () => {
   it('shows a prompt to create a run when no runs exist', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
     )
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByText(/no runs yet/i)).toBeInTheDocument()
@@ -116,11 +136,11 @@ describe('LeadResults — empty state (no runs)', () => {
   })
 })
 
-describe('LeadResults — renders lead list', () => {
+describe('LeadResults â€” renders lead list', () => {
   it('renders a table with lead name, city/state, phone, and gap signals', async () => {
     mockFetch(mockRun, mockLeads)
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument()
@@ -137,7 +157,7 @@ describe('LeadResults — renders lead list', () => {
     // Phone
     expect(screen.getByText('(512) 555-0001')).toBeInTheDocument()
 
-    // Gap signal labels — scoped to the table to avoid matching the filter checkbox
+    // Gap signal labels â€” scoped to the table to avoid matching the filter checkbox
     const table = screen.getByRole('table', { name: /lead results/i })
     expect(within(table).getByText('no website')).toBeInTheDocument()
   })
@@ -145,7 +165,7 @@ describe('LeadResults — renders lead list', () => {
   it('shows leads sorted by gap score (highest first)', async () => {
     mockFetch(mockRun, mockLeads)
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument()
@@ -158,11 +178,11 @@ describe('LeadResults — renders lead list', () => {
   })
 })
 
-describe('LeadResults — run selector', () => {
+describe('LeadResults â€” run selector', () => {
   it('renders a run selector when runs exist', async () => {
     mockFetch([mockRun], mockLeads)
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
@@ -204,7 +224,7 @@ describe('LeadResults — run selector', () => {
       return new Response(JSON.stringify([mockRun, secondRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
     })
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     // First run's leads shown
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
@@ -220,13 +240,13 @@ describe('LeadResults — run selector', () => {
   })
 })
 
-describe('LeadResults — error handling', () => {
+describe('LeadResults â€” error handling', () => {
   it('shows an error message when the API call fails', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('Internal Server Error', { status: 500 })
     )
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toBeInTheDocument()
@@ -234,11 +254,11 @@ describe('LeadResults — error handling', () => {
   })
 })
 
-describe('LeadResults — no leads for run', () => {
+describe('LeadResults â€” no leads for run', () => {
   it('shows a message when the selected run has no qualified leads', async () => {
     mockFetch(mockRun, [])
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByText(/no qualified leads/i)).toBeInTheDocument()
@@ -250,7 +270,7 @@ describe('LeadResults — no leads for run', () => {
 // Issue #0006: cost estimate panel + confirmation dialog before run
 // ---------------------------------------------------------------------------
 
-describe('LeadResults — start run with cost estimate', () => {
+describe('LeadResults â€” start run with cost estimate', () => {
   const estimateResponse = {
     query_count: 2,
     estimated_results: 40,
@@ -290,14 +310,14 @@ describe('LeadResults — start run with cost estimate', () => {
     const user = userEvent.setup()
     mockFetchWithEstimate()
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     // Wait for runs to load
     await waitFor(() =>
       expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
     )
 
-    // Click "Start new run" — should show estimate panel
+    // Click "Start new run" â€” should show estimate panel
     await user.click(screen.getByRole('button', { name: /start new run/i }))
 
     // Estimate panel should appear with query count, results, and cost
@@ -312,7 +332,7 @@ describe('LeadResults — start run with cost estimate', () => {
     const user = userEvent.setup()
     mockFetchWithEstimate()
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
@@ -335,7 +355,7 @@ describe('LeadResults — start run with cost estimate', () => {
     )
     expect(postCalls).toHaveLength(0)
 
-    // Click confirm — now the run is submitted
+    // Click confirm â€” now the run is submitted
     await user.click(screen.getByRole('button', { name: /confirm/i }))
 
     await waitFor(() => {
@@ -354,12 +374,12 @@ describe('LeadResults — start run with cost estimate', () => {
 // Detail panel tests (issue #0007)
 // ---------------------------------------------------------------------------
 
-describe('LeadResults — detail panel opens on row click', () => {
+describe('LeadResults â€” detail panel opens on row click', () => {
   it('clicking a lead row opens the detail panel with business name', async () => {
     mockFetch(mockRun, mockLeads)
     const user = userEvent.setup()
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
 
     await user.click(screen.getByText('Alpha Plumber'))
@@ -373,7 +393,7 @@ describe('LeadResults — detail panel opens on row click', () => {
     mockFetch(mockRun, mockLeads)
     const user = userEvent.setup()
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -389,7 +409,7 @@ describe('LeadResults — detail panel opens on row click', () => {
     mockFetch(mockRun, mockLeads)
     const user = userEvent.setup()
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -402,7 +422,7 @@ describe('LeadResults — detail panel opens on row click', () => {
     mockFetch(mockRun, mockLeads)
     const user = userEvent.setup()
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Beta Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Beta Plumber'))
 
@@ -416,7 +436,7 @@ describe('LeadResults — detail panel opens on row click', () => {
     mockFetch(mockRun, mockLeads)
     const user = userEvent.setup()
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -430,7 +450,7 @@ describe('LeadResults — detail panel opens on row click', () => {
     mockFetch(mockRun, mockLeads)
     const user = userEvent.setup()
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -445,12 +465,12 @@ describe('LeadResults — detail panel opens on row click', () => {
   })
 })
 
-describe('LeadResults — detail panel status selector', () => {
+describe('LeadResults â€” detail panel status selector', () => {
   it('shows current status in the status selector', async () => {
     mockFetch(mockRun, mockLeads)
     const user = userEvent.setup()
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -478,7 +498,7 @@ describe('LeadResults — detail panel status selector', () => {
     })
 
     const user = userEvent.setup()
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -490,12 +510,12 @@ describe('LeadResults — detail panel status selector', () => {
   })
 })
 
-describe('LeadResults — detail panel notes field', () => {
+describe('LeadResults â€” detail panel notes field', () => {
   it('shows a notes textarea in the detail panel', async () => {
     mockFetch(mockRun, mockLeads)
     const user = userEvent.setup()
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -521,7 +541,7 @@ describe('LeadResults — detail panel notes field', () => {
     })
 
     const user = userEvent.setup()
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -537,13 +557,13 @@ describe('LeadResults — detail panel notes field', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Tests — issue #0008: filters, sort, summary, progress
+// Tests â€” issue #0008: filters, sort, summary, progress
 // ---------------------------------------------------------------------------
 
-describe('LeadResults — sort control', () => {
+describe('LeadResults â€” sort control', () => {
   it('renders a sort selector with Gap Score, Name, and City options', async () => {
     mockFetch(mockRun, mockLeads)
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() => expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument())
 
@@ -572,7 +592,7 @@ describe('LeadResults — sort control', () => {
       return new Response(JSON.stringify([mockRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
     })
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument())
 
     const user = userEvent.setup()
@@ -588,10 +608,10 @@ describe('LeadResults — sort control', () => {
   })
 })
 
-describe('LeadResults — signal type filter', () => {
+describe('LeadResults â€” signal type filter', () => {
   it('renders a signal type filter field', async () => {
     mockFetch(mockRun, mockLeads)
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() => expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument())
 
@@ -614,7 +634,7 @@ describe('LeadResults — signal type filter', () => {
       return new Response(JSON.stringify([mockRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
     })
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument())
 
     // Click the no_website checkbox
@@ -631,10 +651,10 @@ describe('LeadResults — signal type filter', () => {
   })
 })
 
-describe('LeadResults — status filter', () => {
+describe('LeadResults â€” status filter', () => {
   it('renders status filter checkboxes', async () => {
     mockFetch(mockRun, mockLeads)
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() => expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument())
 
@@ -656,7 +676,7 @@ describe('LeadResults — status filter', () => {
       return new Response(JSON.stringify([mockRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
     })
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument())
 
     const user = userEvent.setup()
@@ -672,10 +692,10 @@ describe('LeadResults — status filter', () => {
   })
 })
 
-describe('LeadResults — summary row', () => {
+describe('LeadResults â€” summary row', () => {
   it('shows total leads and top signal breakdown', async () => {
     mockFetch(mockRun, mockLeads)
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() => expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument())
 
@@ -688,7 +708,7 @@ describe('LeadResults — summary row', () => {
   })
 })
 
-describe('LeadResults — progress indicator', () => {
+describe('LeadResults â€” progress indicator', () => {
   it('shows a progress indicator when the run is still running', async () => {
     const runningRun = { ...mockRun, status: 'running' }
     const progressData = { status: 'running', queries_completed: 3, queries_total: 10, leads_found: 2 }
@@ -704,7 +724,7 @@ describe('LeadResults — progress indicator', () => {
       return new Response(JSON.stringify([runningRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
     })
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('status', { name: /run progress/i })).toBeInTheDocument()
@@ -719,7 +739,7 @@ describe('LeadResults — progress indicator', () => {
   it('does not show progress indicator for completed runs', async () => {
     mockFetch(mockRun, mockLeads)
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() => expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument())
 
@@ -741,7 +761,7 @@ describe('LeadResults — progress indicator', () => {
       return new Response(JSON.stringify([mockRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
     })
 
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument())
 
     // Set sort to name
@@ -762,11 +782,11 @@ describe('LeadResults — progress indicator', () => {
 // Issue #0010: CSV export
 // ---------------------------------------------------------------------------
 
-describe('LeadResults — Export CSV button', () => {
+describe('LeadResults â€” Export CSV button', () => {
   it('renders an Export CSV button when leads are present', async () => {
     mockFetch(mockRun, mockLeads)
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument()
@@ -800,7 +820,7 @@ describe('LeadResults — Export CSV button', () => {
     globalThis.URL.revokeObjectURL = vi.fn()
 
     const user = userEvent.setup()
-    render(<LeadResults />)
+    renderLeadResults()
 
     // Wait for button to appear (leads loaded)
     await waitFor(() =>
@@ -814,5 +834,56 @@ describe('LeadResults — Export CSV button', () => {
       const calls = fetchSpy.mock.calls.map(([url]) => (typeof url === 'string' ? url : url.toString()))
       expect(calls.some(url => url.includes('/export'))).toBe(true)
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Issue #0014: LeadResults auto-selects run from router state
+// ---------------------------------------------------------------------------
+
+describe('LeadResults - auto-selects run from router state', () => {
+  const run42 = { id: 42, status: 'completed', total_leads: 1, config_yaml: '', error_message: null }
+  const run1 = { id: 1, status: 'completed', total_leads: 2, config_yaml: '', error_message: null }
+
+  function mockFetchWithRuns(runs: object[]) {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/progress')) {
+        return new Response(
+          JSON.stringify({ status: 'completed', queries_completed: 0, queries_total: 0, leads_found: 0 }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.includes('/leads')) {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify(runs), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+  }
+
+  it('when navigated with runId in router state, auto-selects that run in the selector', async () => {
+    mockFetchWithRuns([run1, run42])
+
+    renderLeadResults({ runId: 42 })
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
+    )
+
+    const select = screen.getByRole('combobox', { name: /select run/i }) as HTMLSelectElement
+    expect(select.value).toBe('42')
+  })
+
+  it('when rendered with no router state, falls back to default (selects first run)', async () => {
+    mockFetchWithRuns([run1, run42])
+
+    renderLeadResults()
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
+    )
+
+    const select = screen.getByRole('combobox', { name: /select run/i }) as HTMLSelectElement
+    expect(select.value).toBe('1')
   })
 })
