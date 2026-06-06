@@ -7,6 +7,8 @@ interface GapSignal {
   signal_type: string
   is_hard: boolean
   description: string
+  service: string
+  sales_copy: string
 }
 
 export interface Lead {
@@ -139,10 +141,41 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
         ) : (
           <ul style={{ paddingLeft: '1.25rem', margin: 0 }}>
             {lead.gap_signals.map(signal => (
-              <li key={signal.id} style={{ marginBottom: '0.25rem' }}>
-                <span style={{ fontWeight: signal.is_hard ? 'bold' : 'normal' }}>
-                  {signal.description}
-                </span>
+              <li key={signal.id} style={{ marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: signal.is_hard ? 'bold' : 'normal' }}>
+                    {signal.description}
+                  </span>
+                  {signal.service && (
+                    <span
+                      aria-label={`Service: ${signal.service}`}
+                      style={{
+                        display: 'inline-block',
+                        fontSize: '0.75rem',
+                        fontWeight: 'normal',
+                        padding: '0.125rem 0.5rem',
+                        borderRadius: '9999px',
+                        background: signal.is_hard ? '#fde68a' : '#e0e7ff',
+                        color: signal.is_hard ? '#92400e' : '#3730a3',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {signal.service}
+                    </span>
+                  )}
+                </div>
+                {signal.sales_copy && (
+                  <p
+                    style={{
+                      margin: '0.25rem 0 0 0',
+                      fontSize: '0.875rem',
+                      color: '#374151',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {signal.sales_copy}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
