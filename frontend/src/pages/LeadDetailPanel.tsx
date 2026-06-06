@@ -7,8 +7,8 @@ interface GapSignal {
   signal_type: string
   is_hard: boolean
   description: string
-  service?: string
-  sales_copy?: string
+  service: string
+  sales_copy: string
 }
 
 export interface Lead {
@@ -148,6 +148,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
                   </span>
                   {signal.service && (
                     <span
+                      aria-label={`Service: ${signal.service}`}
                       style={{
                         display: 'inline-block',
                         fontSize: '0.75rem',

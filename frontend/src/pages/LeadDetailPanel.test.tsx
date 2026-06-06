@@ -37,6 +37,18 @@ function renderPanel(lead: Lead) {
   )
 }
 
+function makeSignal(overrides: Partial<Lead['gap_signals'][0]> = {}): Lead['gap_signals'][0] {
+  return {
+    id: 1,
+    signal_type: 'no_website',
+    is_hard: true,
+    description: 'No website listed',
+    service: 'Website Build',
+    sales_copy: 'Pitch copy here.',
+    ...overrides,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Issue #0012: service label and sales copy on gap signals
 // ---------------------------------------------------------------------------
@@ -217,5 +229,24 @@ describe('LeadDetailPanel — hard vs soft signal visual distinction', () => {
     // Soft signal description — expects normal weight
     const softDesc = screen.getByText('Missing meta title')
     expect(softDesc).toHaveStyle({ fontWeight: 'normal' })
+  })
+})
+
+describe('LeadDetailPanel — empty service field', () => {
+  it('does not render service pill when service is empty string', () => {
+    const lead = makeLead({
+      gap_signals: [makeSignal({ service: '', sales_copy: '' })],
+    })
+    renderPanel(lead)
+    expect(screen.queryByLabelText(/^Service:/)).toBeNull()
+  })
+
+  it('does not render sales copy paragraph when sales_copy is empty string', () => {
+    const lead = makeLead({
+      gap_signals: [makeSignal({ sales_copy: '' })],
+    })
+    renderPanel(lead)
+    expect(screen.getByText('No website listed')).toBeTruthy()
+    expect(screen.queryByText('Pitch copy here.')).toBeNull()
   })
 })
