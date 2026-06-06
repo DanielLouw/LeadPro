@@ -100,18 +100,28 @@ def update_lead_status(lead_id: int, body: UpdateStatusRequest, db: Session = De
     return lead
 
 
-@router.put("/{lead_id}/note", response_model=LeadResponse)
-def upsert_lead_note(lead_id: int, body: UpdateNoteRequest, db: Session = Depends(get_db)):
+def _upsert_note(lead_id: int, content: str, db: Session) -> Lead:
+    """Shared logic for creating or updating a lead's note."""
     lead = db.query(Lead).options(*_lead_options()).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     if lead.note:
-        lead.note.content = body.content
+        lead.note.content = content
     else:
-        db.add(Note(lead_id=lead_id, content=body.content))
+        db.add(Note(lead_id=lead_id, content=content))
     db.commit()
     db.refresh(lead)
     return lead
+
+
+@router.put("/{lead_id}/note", response_model=LeadResponse)
+def upsert_lead_note(lead_id: int, body: UpdateNoteRequest, db: Session = Depends(get_db)):
+    return _upsert_note(lead_id, body.content, db)
+
+
+@router.patch("/{lead_id}/notes", response_model=LeadResponse)
+def patch_lead_notes(lead_id: int, body: UpdateNoteRequest, db: Session = Depends(get_db)):
+    return _upsert_note(lead_id, body.content, db)
 
 
 @router.get("/run/{run_id}/export/csv")
