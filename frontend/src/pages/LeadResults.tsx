@@ -395,112 +395,139 @@ export default function LeadResults() {
 
   return (
     <div>
-      <h1>Lead Results</h1>
+      <h1 className="lp-page-title">
+        Lead Results
+      </h1>
 
-      {error && <p role="alert" style={{ color: 'red' }}>{error}</p>}
+      {error && <p role="alert" className="lp-error" style={{ marginBottom: '12px' }}>{error}</p>}
 
-      {loadingRuns && <p>Loading runs…</p>}
+      {loadingRuns && <p style={{ color: '#6b7280' }}>Loading runs…</p>}
 
       {!loadingRuns && runs.length === 0 && !error && (
-        <p>No runs yet. Go to Config Builder to create one.</p>
+        <p style={{ color: '#6b7280' }}>No runs yet. Go to Config Builder to create one.</p>
       )}
 
+      {/* Top toolbar — run selector + actions */}
       {runs.length > 0 && (
-        <section aria-label="Run selector">
-          <label htmlFor="run-select">Select run</label>{' '}
-          <select
-            id="run-select"
-            value={selectedRunId ?? ''}
-            onChange={e => {
-              setSelectedRunId(Number(e.target.value))
-              // Reset filters when switching runs
-              setSelectedSignalTypes([])
-              setSelectedStatuses([])
-              setKnownSignalTypes([])
-              setProgress(null)
-            }}
-          >
-            {runs.map(r => (
-              <option key={r.id} value={r.id}>
-                Run #{r.id} — {r.status} ({r.total_leads} leads)
-              </option>
-            ))}
-          </select>
-        </section>
-      )}
+        <div
+          className="lp-card"
+          style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap', padding: '16px 24px' }}
+        >
+          <section aria-label="Run selector" style={{ flex: '1 1 260px', minWidth: 0 }}>
+            <label htmlFor="run-select" className="lp-label">Select run</label>
+            <select
+              id="run-select"
+              className="lp-select"
+              value={selectedRunId ?? ''}
+              onChange={e => {
+                setSelectedRunId(Number(e.target.value))
+                setSelectedSignalTypes([])
+                setSelectedStatuses([])
+                setKnownSignalTypes([])
+                setProgress(null)
+              }}
+            >
+              {runs.map(r => (
+                <option key={r.id} value={r.id}>
+                  Run #{r.id} — {r.status} ({r.total_leads} leads)
+                </option>
+              ))}
+            </select>
+          </section>
 
-      {selectedRun && (
-        <section aria-label="Run details">
-          <p>
-            Status: <strong>{selectedRun.status}</strong>
-            {selectedRun.total_leads > 0 && ` · ${selectedRun.total_leads} qualified leads`}
-            {selectedRun.error_message && ` · Error: ${selectedRun.error_message}`}
-          </p>
-        </section>
-      )}
+          {selectedRun && (
+            <section aria-label="Run details" style={{ flex: '1 1 auto' }}>
+              <p style={{ fontSize: '13px', color: '#6b7280', lineHeight: '36px' }}>
+                Status: <strong style={{ color: '#111827' }}>{selectedRun.status}</strong>
+                {selectedRun.total_leads > 0 && ` · ${selectedRun.total_leads} qualified leads`}
+                {selectedRun.error_message && ` · Error: ${selectedRun.error_message}`}
+              </p>
+            </section>
+          )}
 
-      {/* Start new run button */}
-      {newRunStep.kind === 'idle' && (
-        <section aria-label="Start new run">
-          <button onClick={handleStartNewRun}>Start new run</button>
-        </section>
+          {/* Start new run button — idle state */}
+          {newRunStep.kind === 'idle' && (
+            <section aria-label="Start new run" style={{ flexShrink: 0 }}>
+              <button className="btn btn-primary" onClick={handleStartNewRun}>Start new run</button>
+            </section>
+          )}
+        </div>
       )}
 
       {/* Config input step */}
       {(newRunStep.kind === 'input' || newRunStep.kind === 'estimating') && (
         <section aria-label="New run configuration">
-          <h2>New Run</h2>
-          <label htmlFor="new-run-yaml">Paste your Search Config YAML</label>
-          <textarea
-            id="new-run-yaml"
-            aria-label="Search config YAML"
-            rows={8}
-            cols={60}
-            value={newRunStep.configYaml}
-            onChange={e =>
-              newRunStep.kind === 'input' &&
-              setNewRunStep({ kind: 'input', configYaml: e.target.value })
-            }
-            disabled={newRunStep.kind === 'estimating'}
-          />
-          <div>
-            <button
-              onClick={handleFetchEstimate}
-              disabled={newRunStep.kind === 'estimating' || !newRunStep.configYaml.trim()}
-            >
-              {newRunStep.kind === 'estimating' ? <><Spinner />Estimating…</> : 'Start new run'}
-            </button>
-            <button onClick={handleCancelNewRun}>Cancel</button>
+          <div className="lp-card" style={{ maxWidth: '600px' }}>
+            <h2 className="lp-section-title">New Run</h2>
+            <label htmlFor="new-run-yaml" className="lp-label">Paste your Search Config YAML</label>
+            <textarea
+              id="new-run-yaml"
+              aria-label="Search config YAML"
+              className="lp-textarea"
+              rows={8}
+              value={newRunStep.configYaml}
+              onChange={e =>
+                newRunStep.kind === 'input' &&
+                setNewRunStep({ kind: 'input', configYaml: e.target.value })
+              }
+              disabled={newRunStep.kind === 'estimating'}
+              style={{ marginBottom: '12px', fontFamily: 'monospace', fontSize: 'var(--font-size-sm)' }}
+            />
+            <div className="lp-row">
+              <button
+                className="btn btn-primary"
+                onClick={handleFetchEstimate}
+                disabled={newRunStep.kind === 'estimating' || !newRunStep.configYaml.trim()}
+              >
+                {newRunStep.kind === 'estimating' ? <><Spinner />Estimating…</> : 'Start new run'}
+              </button>
+              <button className="btn btn-secondary" onClick={handleCancelNewRun}>Cancel</button>
+            </div>
+            {newRunError && <p role="alert" className="lp-error">{newRunError}</p>}
           </div>
-          {newRunError && <p role="alert" style={{ color: 'red' }}>{newRunError}</p>}
         </section>
       )}
 
       {/* Confirm step — shows estimate and requires explicit confirm */}
       {(newRunStep.kind === 'confirm' || newRunStep.kind === 'submitting') && (
         <section aria-label="Run cost estimate">
-          <h2>Estimated Cost</h2>
-          <p>{newRunStep.estimate.query_count} queries</p>
-          <p>{newRunStep.estimate.estimated_results} results</p>
-          <p>${newRunStep.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
-          <div>
-            <button
-              onClick={handleConfirmRun}
-              disabled={newRunStep.kind === 'submitting'}
-            >
-              {newRunStep.kind === 'submitting' ? <><Spinner />Starting…</> : 'Confirm & start run'}
-            </button>
-            <button onClick={handleCancelNewRun} disabled={newRunStep.kind === 'submitting'}>
-              Cancel
-            </button>
+          <div className="lp-card" style={{ maxWidth: '400px' }}>
+            <h2 className="lp-section-title" style={{ marginBottom: '12px' }}>Estimated Cost</h2>
+            <p style={{ marginBottom: '4px', color: '#374151' }}>{newRunStep.estimate.query_count} queries</p>
+            <p style={{ marginBottom: '4px', color: '#374151' }}>{newRunStep.estimate.estimated_results} results</p>
+            <p style={{ marginBottom: '16px', color: '#374151' }}>${newRunStep.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
+            <div className="lp-row">
+              <button
+                className="btn btn-primary"
+                onClick={handleConfirmRun}
+                disabled={newRunStep.kind === 'submitting'}
+              >
+                {newRunStep.kind === 'submitting' ? <><Spinner />Starting…</> : 'Confirm & start run'}
+              </button>
+              <button className="btn btn-secondary" onClick={handleCancelNewRun} disabled={newRunStep.kind === 'submitting'}>
+                Cancel
+              </button>
+            </div>
+            {newRunError && <p role="alert" className="lp-error">{newRunError}</p>}
           </div>
-          {newRunError && <p role="alert" style={{ color: 'red' }}>{newRunError}</p>}
         </section>
       )}
 
       {/* Progress indicator — only shown while run is executing */}
       {isRunning && progress && (
-        <div role="status" aria-label="Run progress">
+        <div
+          role="status"
+          aria-label="Run progress"
+          style={{
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            borderRadius: '6px',
+            padding: '10px 16px',
+            marginBottom: '16px',
+            fontSize: '13px',
+            color: '#1d4ed8',
+          }}
+        >
           <p>
             Queries: {progress.queries_completed} / {progress.queries_total}{' '}
             &nbsp;·&nbsp; {progress.leads_found} leads found
@@ -511,63 +538,72 @@ export default function LeadResults() {
       {/* Filters + sort controls — shown whenever there is a selected run */}
       {selectedRunId != null && (
         <section aria-label="Filters and sort">
-          {/* Sort */}
-          <label htmlFor="sort-select">Sort by</label>{' '}
-          <select
-            id="sort-select"
-            value={sort}
-            onChange={e => setSort(e.target.value as SortField)}
-          >
-            {SORT_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+          <div className="lp-card" style={{ padding: '16px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: knownSignalTypes.length > 0 ? '16px' : 0 }}>
+              <label htmlFor="sort-select" className="lp-label" style={{ margin: 0, whiteSpace: 'nowrap' }}>Sort by</label>
+              <select
+                id="sort-select"
+                className="lp-select"
+                style={{ width: '160px' }}
+                value={sort}
+                onChange={e => setSort(e.target.value as SortField)}
+              >
+                {SORT_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Signal type filter */}
-          {knownSignalTypes.length > 0 && (
-            <fieldset>
-              <legend>Signal type</legend>
-              {knownSignalTypes.map(st => (
-                <label key={st} style={{ marginRight: '0.75rem' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedSignalTypes.includes(st)}
-                    onChange={() => toggleSignalType(st)}
-                  />{' '}
-                  {st.replace(/_/g, ' ')}
-                </label>
-              ))}
+            {/* Signal type filter */}
+            {knownSignalTypes.length > 0 && (
+              <fieldset className="lp-fieldset" style={{ marginBottom: '12px' }}>
+                <legend>Signal type</legend>
+                <div className="lp-checkbox-inline-list">
+                  {knownSignalTypes.map(st => (
+                    <label key={st} className="lp-checkbox-item">
+                      <input
+                        type="checkbox"
+                        checked={selectedSignalTypes.includes(st)}
+                        onChange={() => toggleSignalType(st)}
+                      />
+                      {st.replace(/_/g, ' ')}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            {/* Status filter */}
+            <fieldset className="lp-fieldset">
+              <legend>Status</legend>
+              <div className="lp-checkbox-inline-list">
+                {ALL_STATUSES.map(s => (
+                  <label key={s} className="lp-checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedStatuses.includes(s)}
+                      onChange={() => toggleStatus(s)}
+                    />
+                    {s}
+                  </label>
+                ))}
+              </div>
             </fieldset>
-          )}
-
-          {/* Status filter */}
-          <fieldset>
-            <legend>Status</legend>
-            {ALL_STATUSES.map(s => (
-              <label key={s} style={{ marginRight: '0.75rem' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedStatuses.includes(s)}
-                  onChange={() => toggleStatus(s)}
-                />{' '}
-                {s}
-              </label>
-            ))}
-          </fieldset>
+          </div>
         </section>
       )}
 
       {loadingLeads && <SkeletonTable />}
 
       {!loadingLeads && leads.length === 0 && selectedRunId != null && !error && (
-        <p>No qualified leads for this run.</p>
+        <p style={{ color: '#6b7280', marginTop: '16px' }}>No qualified leads for this run.</p>
       )}
 
       {leads.length > 0 && (
         <>
           {/* Summary */}
-          <section aria-label="Summary">
-            <p>
+          <section aria-label="Summary" style={{ margin: '16px 0 8px' }}>
+            <p style={{ fontSize: '13px', color: '#374151' }}>
               <strong>{leads.length} leads</strong>
               {breakdown.length > 0 && (
                 <> — top signals:{' '}
@@ -581,40 +617,78 @@ export default function LeadResults() {
             </p>
           </section>
 
-          <div style={{ marginBottom: '0.75rem' }}>
-            <button onClick={handleExportCsv} disabled={exportingCsv}>
+          <div style={{ marginBottom: '12px' }}>
+            <button className="btn btn-secondary" onClick={handleExportCsv} disabled={exportingCsv}>
               {exportingCsv ? <><Spinner />Exporting…</> : 'Export CSV'}
             </button>
           </div>
 
-          <table aria-label="Lead results">
+          <table
+            aria-label="Lead results"
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '14px',
+            }}
+          >
             <thead>
-              <tr>
-                <th>Name</th>
-                <th>Location</th>
-                <th>Phone</th>
-                <th>Gap Score</th>
-                <th>Top Signals</th>
-                <th>Services</th>
+              <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                {(['Name', 'Location', 'Phone', 'Gap Score', 'Top Signals', 'Services'] as const).map(col => (
+                  <th
+                    key={col}
+                    style={{
+                      textAlign: 'left',
+                      padding: '8px 12px',
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      color: '#6b7280',
+                    }}
+                  >
+                    {col}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {leads.map(lead => (
+              {leads.map((lead, idx) => (
                 <tr
                   key={lead.id}
-                  style={{ cursor: 'pointer' }}
+                  style={{
+                    cursor: 'pointer',
+                    borderBottom: '1px solid #f3f4f6',
+                    background: idx % 2 === 0 ? '#ffffff' : '#fafafa',
+                    transition: 'background 0.1s',
+                  }}
                   onClick={() => setSelectedLead(lead)}
+                  onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = '#eff6ff' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = idx % 2 === 0 ? '#ffffff' : '#fafafa' }}
                 >
-                  <td>{lead.name}</td>
-                  <td>{formatLocation(lead)}</td>
-                  <td>{lead.phone ?? '—'}</td>
-                  <td>{lead.gap_score.toFixed(1)}</td>
-                  <td>
+                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>{lead.name}</td>
+                  <td style={{ padding: '10px 12px', color: '#374151' }}>{formatLocation(lead)}</td>
+                  <td style={{ padding: '10px 12px', color: '#374151' }}>{lead.phone ?? '—'}</td>
+                  <td style={{ padding: '10px 12px', fontWeight: 600, color: '#1d4ed8' }}>{lead.gap_score.toFixed(1)}</td>
+                  <td style={{ padding: '10px 12px', color: '#374151' }}>
                     {topSignalLabels(lead).map(label => (
-                      <span key={label} style={{ marginRight: '0.4rem' }}>{label}</span>
+                      <span
+                        key={label}
+                        style={{
+                          display: 'inline-block',
+                          marginRight: '4px',
+                          marginBottom: '2px',
+                          fontSize: '12px',
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          borderRadius: '4px',
+                          padding: '1px 6px',
+                        }}
+                      >
+                        {label}
+                      </span>
                     ))}
                   </td>
-                  <td>
+                  <td style={{ padding: '10px 12px' }}>
                     {getServiceBadges(lead.gap_signals).map(service => (
                       <ServiceBadge key={service} service={service} />
                     ))}
