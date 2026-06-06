@@ -135,14 +135,27 @@ SIGNAL_SALES_COPY: dict[str, str] = {
 }
 
 
+_ALL_SIGNAL_TYPES = set(HARD_SIGNALS) | set(SOFT_SIGNALS)
+assert SIGNAL_SERVICE.keys() == _ALL_SIGNAL_TYPES, (
+    f"SIGNAL_SERVICE is missing keys: {_ALL_SIGNAL_TYPES - SIGNAL_SERVICE.keys()}"
+)
+assert SIGNAL_SALES_COPY.keys() == _ALL_SIGNAL_TYPES, (
+    f"SIGNAL_SALES_COPY is missing keys: {_ALL_SIGNAL_TYPES - SIGNAL_SALES_COPY.keys()}"
+)
+
+
 def get_signal_service(signal_type: str) -> str:
-    """Return the service category for a given signal type."""
-    return SIGNAL_SERVICE.get(signal_type, "Website Build")
+    try:
+        return SIGNAL_SERVICE[signal_type]
+    except KeyError:
+        raise ValueError(f"Unknown signal type: {signal_type!r}") from None
 
 
 def get_signal_sales_copy(signal_type: str) -> str:
-    """Return the sales copy for a given signal type."""
-    return SIGNAL_SALES_COPY.get(signal_type, "")
+    try:
+        return SIGNAL_SALES_COPY[signal_type]
+    except KeyError:
+        raise ValueError(f"Unknown signal type: {signal_type!r}") from None
 
 
 @dataclass
