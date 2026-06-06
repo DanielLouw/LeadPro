@@ -102,6 +102,28 @@ function topSignalBreakdown(leads: Lead[]): { type: string; count: number }[] {
     .slice(0, 3)
 }
 
+const STATUS_ROW_BG: Record<string, string> = {
+  new:       '#dbeafe',  // light blue
+  reviewing: '#93c5fd',  // darker blue
+  contacted: '#ffedd5',  // orange
+  pass:      '#dcfce7',  // green
+}
+
+const STATUS_ROW_HOVER: Record<string, string> = {
+  new:       '#bfdbfe',
+  reviewing: '#60a5fa',
+  contacted: '#fed7aa',
+  pass:      '#bbf7d0',
+}
+
+function statusRowBg(status: string): string {
+  return STATUS_ROW_BG[status] ?? '#ffffff'
+}
+
+function statusRowHover(status: string): string {
+  return STATUS_ROW_HOVER[status] ?? '#eff6ff'
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -652,18 +674,18 @@ export default function LeadResults() {
               </tr>
             </thead>
             <tbody>
-              {leads.map((lead, idx) => (
+              {leads.map((lead) => (
                 <tr
                   key={lead.id}
                   style={{
                     cursor: 'pointer',
                     borderBottom: '1px solid #f3f4f6',
-                    background: idx % 2 === 0 ? '#ffffff' : '#fafafa',
+                    background: statusRowBg(lead.status),
                     transition: 'background 0.1s',
                   }}
                   onClick={() => setSelectedLead(lead)}
-                  onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = '#eff6ff' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = idx % 2 === 0 ? '#ffffff' : '#fafafa' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = statusRowHover(lead.status) }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = statusRowBg(lead.status) }}
                 >
                   <td style={{ padding: '10px 12px', fontWeight: 500 }}>{lead.name}</td>
                   <td style={{ padding: '10px 12px', color: '#374151' }}>{formatLocation(lead)}</td>
