@@ -99,51 +99,137 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
         top: 0,
         right: 0,
         bottom: 0,
-        width: '420px',
+        width: '440px',
         background: '#fff',
-        boxShadow: '-2px 0 12px rgba(0,0,0,0.15)',
+        boxShadow: '-4px 0 24px rgba(0,0,0,0.12)',
         overflowY: 'auto',
-        padding: '1.5rem',
+        padding: '24px',
         zIndex: 1000,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-        <h2 style={{ margin: 0 }}>{lead.name}</h2>
-        <button aria-label="Close detail panel" onClick={onClose} style={{ fontSize: '1.25rem', lineHeight: 1, cursor: 'pointer' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
+          {lead.name}
+        </h2>
+        <button
+          aria-label="Close detail panel"
+          onClick={onClose}
+          style={{
+            background: 'none',
+            border: '1px solid #e5e7eb',
+            borderRadius: '6px',
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            fontSize: '14px',
+            color: '#6b7280',
+            flexShrink: 0,
+            marginLeft: '12px',
+          }}
+        >
           ✕
         </button>
       </div>
 
-      <section aria-label="Contact information">
-        {lead.address && <p style={{ margin: '0.25rem 0' }}>{lead.address}</p>}
-        {lead.phone && <p style={{ margin: '0.25rem 0' }}>{lead.phone}</p>}
-        {lead.email && <p style={{ margin: '0.25rem 0' }}>{lead.email}</p>}
-        <p style={{ margin: '0.25rem 0' }}>Gap Score: <strong>{lead.gap_score.toFixed(1)}</strong></p>
+      {/* Contact info */}
+      <section aria-label="Contact information" style={{ marginBottom: '20px' }}>
+        {lead.address && (
+          <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>
+            {lead.address}
+          </p>
+        )}
+        {lead.phone && (
+          <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>
+            {lead.phone}
+          </p>
+        )}
+        {lead.email && (
+          <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>
+            {lead.email}
+          </p>
+        )}
+        <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#374151' }}>
+          Gap Score:{' '}
+          <strong style={{ color: '#1d4ed8', fontWeight: 700 }}>
+            {lead.gap_score.toFixed(1)}
+          </strong>
+        </p>
       </section>
 
-      <section aria-label="Links" style={{ margin: '1rem 0' }}>
+      {/* Links */}
+      <section aria-label="Links" style={{ marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
         {lead.website_url && (
-          <a href={lead.website_url} target="_blank" rel="noopener noreferrer" style={{ marginRight: '1rem' }}>
-            Visit website
+          <a
+            href={lead.website_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '13px',
+              color: '#2563eb',
+              textDecoration: 'underline',
+              textDecorationColor: 'transparent',
+              transition: 'text-decoration-color 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = '#2563eb' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = 'transparent' }}
+          >
+            Visit website ↗
           </a>
         )}
         {lead.maps_url && (
-          <a href={lead.maps_url} target="_blank" rel="noopener noreferrer">
-            Google Maps
+          <a
+            href={lead.maps_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '13px',
+              color: '#2563eb',
+              textDecoration: 'underline',
+              textDecorationColor: 'transparent',
+              transition: 'text-decoration-color 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = '#2563eb' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = 'transparent' }}
+          >
+            Google Maps ↗
           </a>
         )}
       </section>
 
-      <section aria-label="Gap signals" style={{ margin: '1rem 0' }}>
-        <h3 style={{ margin: '0 0 0.5rem 0' }}>Gap Signals</h3>
+      {/* Divider */}
+      <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', marginBottom: '20px' }} />
+
+      {/* Gap signals */}
+      <section aria-label="Gap signals" style={{ marginBottom: '20px' }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280' }}>
+          Gap Signals
+        </h3>
         {lead.gap_signals.length === 0 ? (
-          <p>No signals detected.</p>
+          <p style={{ color: '#9ca3af', fontSize: '14px' }}>No signals detected.</p>
         ) : (
-          <ul style={{ paddingLeft: '1.25rem', margin: 0 }}>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {lead.gap_signals.map(signal => (
-              <li key={signal.id} style={{ marginBottom: '0.75rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: signal.is_hard ? 'bold' : 'normal' }}>
+              <li
+                key={signal.id}
+                style={{
+                  background: signal.is_hard ? '#fffbeb' : '#f9fafb',
+                  border: `1px solid ${signal.is_hard ? '#fde68a' : '#e5e7eb'}`,
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: signal.sales_copy ? '6px' : 0 }}>
+                  <span style={{ fontWeight: signal.is_hard ? 'bold' : 'normal', fontSize: '14px', color: '#111827' }}>
                     {signal.description}
                   </span>
                   {signal.service && (
@@ -167,7 +253,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
                 {signal.sales_copy && (
                   <p
                     style={{
-                      margin: '0.25rem 0 0 0',
+                      margin: 0,
                       fontSize: '0.875rem',
                       color: '#374151',
                       lineHeight: 1.5,
@@ -182,14 +268,20 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
         )}
       </section>
 
-      <section aria-label="Status" style={{ margin: '1rem 0' }}>
-        <label htmlFor={`status-${lead.id}`} style={{ display: 'block', marginBottom: '0.25rem' }}>
+      {/* Divider */}
+      <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', marginBottom: '20px' }} />
+
+      {/* Status */}
+      <section aria-label="Status" style={{ marginBottom: '20px' }}>
+        <label htmlFor={`status-${lead.id}`} className="lp-label">
           Status
         </label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <select
             id={`status-${lead.id}`}
             aria-label="Status"
+            className="lp-select"
+            style={{ width: '160px' }}
             value={lead.status}
             disabled={savingStatus}
             onChange={e => handleStatusChange(e.target.value)}
@@ -202,24 +294,26 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
         </div>
       </section>
 
-      <section aria-label="Notes" style={{ margin: '1rem 0' }}>
-        <label htmlFor={`notes-${lead.id}`} style={{ display: 'block', marginBottom: '0.25rem' }}>
+      {/* Notes */}
+      <section aria-label="Notes">
+        <label htmlFor={`notes-${lead.id}`} className="lp-label">
           Notes
         </label>
         <textarea
           id={`notes-${lead.id}`}
           aria-label="Notes"
+          className="lp-textarea"
           value={notesValue}
           disabled={savingNotes}
           rows={5}
-          style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
+          style={{ marginBottom: '8px' }}
           onChange={e => setNotesValue(e.target.value)}
           onBlur={handleNotesBlur}
         />
         <button
+          className="btn btn-primary"
           onClick={() => handleNotesBlur()}
           disabled={savingNotes}
-          style={{ marginTop: '0.5rem' }}
         >
           {savingNotes ? <><Spinner />Saving…</> : 'Save notes'}
         </button>

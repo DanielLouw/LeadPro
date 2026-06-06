@@ -180,141 +180,189 @@ export default function ConfigBuilder() {
 
   return (
     <div>
-      <h1>Config Builder</h1>
+      <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '24px', color: '#111827' }}>
+        Config Builder
+      </h1>
 
       {/* Business Types */}
-      <section>
-        <h2>Business Types</h2>
+      <div className="lp-card">
+        <h2 className="lp-section-title">Business Types</h2>
         {businessTypes.map(group => (
-          <div key={group.vertical}>
-            <h3>{group.vertical}</h3>
-            {group.types.map(type => (
-              <label key={type}>
-                <input
-                  type="checkbox"
-                  checked={selectedTypes.has(type)}
-                  onChange={() => toggleType(type)}
-                  aria-label={type}
-                />
-                {' '}{type}
-              </label>
-            ))}
+          <div key={group.vertical} style={{ marginBottom: '20px' }}>
+            <h3 className="lp-subsection-title">{group.vertical}</h3>
+            <div className="lp-checkbox-list">
+              {group.types.map(type => (
+                <label key={type} className="lp-checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedTypes.has(type)}
+                    onChange={() => toggleType(type)}
+                    aria-label={type}
+                  />
+                  {type}
+                </label>
+              ))}
+            </div>
           </div>
         ))}
 
         {/* Custom types */}
-        {customTypes.map(ct => (
-          <label key={ct.name}>
-            <input
-              type="checkbox"
-              checked={ct.checked}
-              onChange={() => toggleCustomType(ct.name)}
-              aria-label={ct.name}
-            />
-            {' '}{ct.name}
-          </label>
-        ))}
+        {customTypes.length > 0 && (
+          <div style={{ marginBottom: '20px' }}>
+            <h3 className="lp-subsection-title">Custom types</h3>
+            <div className="lp-checkbox-list">
+              {customTypes.map(ct => (
+                <label key={ct.name} className="lp-checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={ct.checked}
+                    onChange={() => toggleCustomType(ct.name)}
+                    aria-label={ct.name}
+                  />
+                  {ct.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <input
           type="text"
+          className="lp-input"
+          style={{ maxWidth: '320px' }}
           placeholder="add custom business type"
           value={customInput}
           onChange={handleCustomInput}
           onKeyDown={handleCustomKeyDown}
         />
-      </section>
+      </div>
 
       {/* City Picker */}
-      <section>
-        <h2>Cities</h2>
-        <label htmlFor="state-select">Select state</label>
-        <select
-          id="state-select"
-          value={selectedState}
-          onChange={handleStateChange}
-        >
-          <option value="">-- select state --</option>
-          {stateCities.map(s => (
-            <option key={s.abbreviation} value={s.abbreviation}>
-              {s.name} ({s.abbreviation})
-            </option>
-          ))}
-        </select>
-
-        <label htmlFor="city-select">Select city</label>
-        <select
-          id="city-select"
-          value={citySelectValue}
-          onChange={handleCityChange}
-        >
-          <option value="">-- select city --</option>
-          {cityOptions.map(city => (
-            <option key={city} value={city}>
-              {city}
-            </option>
-          ))}
-        </select>
+      <div className="lp-card">
+        <h2 className="lp-section-title">Cities</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', maxWidth: '560px', marginBottom: '16px' }}>
+          <div>
+            <label htmlFor="state-select" className="lp-label">Select state</label>
+            <select
+              id="state-select"
+              className="lp-select"
+              value={selectedState}
+              onChange={handleStateChange}
+            >
+              <option value="">-- select state --</option>
+              {stateCities.map(s => (
+                <option key={s.abbreviation} value={s.abbreviation}>
+                  {s.name} ({s.abbreviation})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="city-select" className="lp-label">Select city</label>
+            <select
+              id="city-select"
+              className="lp-select"
+              value={citySelectValue}
+              onChange={handleCityChange}
+            >
+              <option value="">-- select city --</option>
+              {cityOptions.map(city => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {selectedCities.length > 0 && (
-          <ul aria-label="Selected cities">
+          <ul
+            aria-label="Selected cities"
+            style={{
+              listStyle: 'none',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px',
+              marginTop: '4px',
+            }}
+          >
             {selectedCities.map((c, i) => (
-              <li key={`${i}:${c.city}:${c.state}`}>{c.city}, {c.state}</li>
+              <li
+                key={`${i}:${c.city}:${c.state}`}
+                style={{
+                  background: '#eff6ff',
+                  color: '#1d4ed8',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '9999px',
+                  padding: '2px 10px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                }}
+              >
+                {c.city}, {c.state}
+              </li>
             ))}
           </ul>
         )}
-      </section>
+      </div>
 
       {/* Max results cap */}
-      <section>
-        <label htmlFor="max-results-cap">Max results cap</label>
+      <div className="lp-card" style={{ paddingBottom: '20px' }}>
+        <label htmlFor="max-results-cap" className="lp-label">Max results cap</label>
         <input
           id="max-results-cap"
           type="number"
+          className="lp-input"
+          style={{ maxWidth: '160px' }}
           min={1}
           value={maxResults}
           onChange={e => setMaxResults(Number(e.target.value))}
           aria-label="Max results cap"
         />
-      </section>
+      </div>
 
       {/* Launch flow */}
       {step.kind === 'editing' && (
         <section>
           <button
+            className="btn btn-primary"
             onClick={handleRun}
             disabled={selectedTypes.size === 0 || selectedCities.length === 0}
           >
             Run
           </button>
-          {runError && <p role="alert" style={{ color: 'red' }}>{runError}</p>}
+          {runError && <p role="alert" className="lp-error">{runError}</p>}
         </section>
       )}
 
       {step.kind === 'estimating' && (
         <section aria-label="Estimating cost">
-          <p>Estimating&hellip;</p>
-          <button onClick={handleCancel}>Cancel</button>
+          <p style={{ color: '#6b7280', marginBottom: '12px' }}>Estimating&hellip;</p>
+          <button className="btn btn-secondary" onClick={handleCancel}>Cancel</button>
         </section>
       )}
 
       {(step.kind === 'confirm' || step.kind === 'submitting') && (
         <section aria-label="Run cost estimate">
-          <h2>Estimated Cost</h2>
-          <p>{step.estimate.query_count} queries</p>
-          <p>{step.estimate.estimated_results} results</p>
-          <p>${step.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
-          <div>
-            <button
-              onClick={handleConfirmRun}
-              disabled={step.kind === 'submitting'}
-            >
-              {step.kind === 'submitting' ? 'Starting…' : 'Confirm & start run'}
-            </button>
-            <button onClick={handleCancel} disabled={step.kind === 'submitting'}>
-              Cancel
-            </button>
+          <div className="lp-card" style={{ maxWidth: '400px' }}>
+            <h2 className="lp-section-title" style={{ marginBottom: '12px' }}>Estimated Cost</h2>
+            <p style={{ marginBottom: '4px', color: '#374151' }}>{step.estimate.query_count} queries</p>
+            <p style={{ marginBottom: '4px', color: '#374151' }}>{step.estimate.estimated_results} results</p>
+            <p style={{ marginBottom: '16px', color: '#374151' }}>${step.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
+            <div className="lp-row">
+              <button
+                className="btn btn-primary"
+                onClick={handleConfirmRun}
+                disabled={step.kind === 'submitting'}
+              >
+                {step.kind === 'submitting' ? 'Starting…' : 'Confirm & start run'}
+              </button>
+              <button className="btn btn-secondary" onClick={handleCancel} disabled={step.kind === 'submitting'}>
+                Cancel
+              </button>
+            </div>
+            {runError && <p role="alert" className="lp-error">{runError}</p>}
           </div>
-          {runError && <p role="alert" style={{ color: 'red' }}>{runError}</p>}
         </section>
       )}
     </div>
