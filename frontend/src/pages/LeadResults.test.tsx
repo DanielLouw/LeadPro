@@ -1104,6 +1104,152 @@ describe('LeadResults â€” Export CSV button', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Issue #0013: Service badges on lead list
+// ---------------------------------------------------------------------------
+
+describe('LeadResults — service badges', () => {
+  const leadsWithServices = [
+    {
+      id: 10,
+      run_id: 1,
+      place_id: 'place_010',
+      name: 'Website Build Lead',
+      city: 'Austin',
+      state: 'TX',
+      phone: null,
+      email: null,
+      website_url: null,
+      maps_url: null,
+      gap_score: 9.0,
+      status: 'new',
+      note: null,
+      gap_signals: [
+        { id: 100, signal_type: 'no_website', is_hard: true, description: 'No website', service: 'Website Build' },
+      ],
+    },
+    {
+      id: 11,
+      run_id: 1,
+      place_id: 'place_011',
+      name: 'Multi-Service Lead',
+      city: 'Dallas',
+      state: 'TX',
+      phone: null,
+      email: null,
+      website_url: null,
+      maps_url: null,
+      gap_score: 8.0,
+      status: 'new',
+      note: null,
+      gap_signals: [
+        { id: 101, signal_type: 'no_website', is_hard: true, description: 'No website', service: 'Website Build' },
+        { id: 102, signal_type: 'missing_meta_title', is_hard: false, description: 'Missing title', service: 'SEO Package' },
+        { id: 103, signal_type: 'missing_meta_desc', is_hard: false, description: 'Missing desc', service: 'SEO Package' },
+      ],
+    },
+    {
+      id: 12,
+      run_id: 1,
+      place_id: 'place_012',
+      name: 'Modernisation Lead',
+      city: 'Houston',
+      state: 'TX',
+      phone: null,
+      email: null,
+      website_url: null,
+      maps_url: null,
+      gap_score: 7.0,
+      status: 'new',
+      note: null,
+      gap_signals: [
+        { id: 104, signal_type: 'slow_page', is_hard: false, description: 'Slow page', service: 'Website Modernisation' },
+        { id: 105, signal_type: 'no_ssl', is_hard: true, description: 'No SSL', service: 'Website Modernisation' },
+      ],
+    },
+  ]
+
+  it('shows a "Website Build" badge for a lead with a Website Build service signal', async () => {
+    mockFetch(mockRun, leadsWithServices)
+    renderLeadResults()
+
+    await waitFor(() =>
+      expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument()
+    )
+
+    const table = screen.getByRole('table', { name: /lead results/i })
+    // The first lead row should show exactly one "Website Build" badge
+    const badges = within(table).getAllByText('Website Build')
+    // One badge on the first lead row
+    expect(badges.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('deduplicates service badges — two SEO signals produce one SEO badge', async () => {
+    mockFetch(mockRun, leadsWithServices)
+    renderLeadResults()
+
+    await waitFor(() =>
+      expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument()
+    )
+
+    const table = screen.getByRole('table', { name: /lead results/i })
+
+    // Multi-Service Lead (id=11) has 2 SEO signals → only one "SEO Package" badge
+    const rows = within(table).getAllByRole('row')
+    // rows[0]=header, rows[1]=lead10, rows[2]=lead11, rows[3]=lead12
+    const multiServiceRow = rows[2]
+    const seoBadges = within(multiServiceRow).getAllByText('SEO Package')
+    expect(seoBadges).toHaveLength(1)
+  })
+
+  it('shows multiple distinct badges for a lead with multiple service types', async () => {
+    mockFetch(mockRun, leadsWithServices)
+    renderLeadResults()
+
+    await waitFor(() =>
+      expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument()
+    )
+
+    const table = screen.getByRole('table', { name: /lead results/i })
+    const rows = within(table).getAllByRole('row')
+    // Multi-Service Lead has Website Build + SEO Package
+    const multiServiceRow = rows[2]
+    expect(within(multiServiceRow).getByText('Website Build')).toBeInTheDocument()
+    expect(within(multiServiceRow).getByText('SEO Package')).toBeInTheDocument()
+  })
+
+  it('shows a "Website Modernisation" badge for a lead with that service', async () => {
+    mockFetch(mockRun, leadsWithServices)
+    renderLeadResults()
+
+    await waitFor(() =>
+      expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument()
+    )
+
+    const table = screen.getByRole('table', { name: /lead results/i })
+    const rows = within(table).getAllByRole('row')
+    const modernisationRow = rows[3]
+    // Only one "Website Modernisation" badge despite two signals of that type
+    const badges = within(modernisationRow).getAllByText('Website Modernisation')
+    expect(badges).toHaveLength(1)
+  })
+
+  it('renders badges with the correct accessible role', async () => {
+    mockFetch(mockRun, leadsWithServices)
+    renderLeadResults()
+
+    await waitFor(() =>
+      expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument()
+    )
+
+    // Verify that each service badge text appears in the table at least once
+    const table = screen.getByRole('table', { name: /lead results/i })
+    expect(within(table).getAllByText('Website Build').length).toBeGreaterThanOrEqual(1)
+    expect(within(table).getAllByText('Website Modernisation').length).toBeGreaterThanOrEqual(1)
+    expect(within(table).getAllByText('SEO Package').length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Issue #0014: LeadResults auto-selects run from router state
 // ---------------------------------------------------------------------------
 

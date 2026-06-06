@@ -7,6 +7,7 @@ interface GapSignal {
   signal_type: string
   is_hard: boolean
   description: string
+  service?: string
 }
 
 export interface Lead {
