@@ -44,13 +44,17 @@ export default function ServiceBadge({ service }: Props) {
   )
 }
 
+const VALID_SERVICES = new Set<string>(Object.keys(BADGE_STYLES))
+
 /** Return the deduplicated list of service types present on a lead's gap_signals. */
 export function getServiceBadges(
-  gapSignals: { service?: string }[],
+  gapSignals: { service?: string }[] = [],
 ): ServiceType[] {
   const seen = new Set<ServiceType>()
   for (const sig of gapSignals) {
-    if (sig.service) seen.add(sig.service as ServiceType)
+    if (sig.service && VALID_SERVICES.has(sig.service)) {
+      seen.add(sig.service as ServiceType)
+    }
   }
   return Array.from(seen)
 }

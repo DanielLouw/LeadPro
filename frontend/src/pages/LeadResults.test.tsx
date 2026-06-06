@@ -1247,6 +1247,37 @@ describe('LeadResults — service badges', () => {
     expect(within(table).getAllByText('Website Modernisation').length).toBeGreaterThanOrEqual(1)
     expect(within(table).getAllByText('SEO Package').length).toBeGreaterThanOrEqual(1)
   })
+
+  it('renders no badges for a lead with no gap_signals', async () => {
+    const leadNoSignals = {
+      id: 20, run_id: 1, place_id: 'p20', name: 'No Signals Co', phone: null,
+      address: null, city: 'Austin', state: 'TX', email: null, website_url: null,
+      maps_url: null, gap_score: 0, status: 'new', gap_signals: [], note: null,
+    }
+    mockFetch(mockRun, [leadNoSignals])
+    renderLeadResults()
+    await waitFor(() => screen.getByText('No Signals Co'))
+    expect(screen.queryByText('Website Build')).toBeNull()
+    expect(screen.queryByText('Website Modernisation')).toBeNull()
+    expect(screen.queryByText('SEO Package')).toBeNull()
+  })
+
+  it('silently omits badges for unknown service strings', async () => {
+    const leadUnknown = {
+      id: 21, run_id: 1, place_id: 'p21', name: 'Unknown Service Co', phone: null,
+      address: null, city: 'Austin', state: 'TX', email: null, website_url: null,
+      maps_url: null, gap_score: 5, status: 'new', note: null,
+      gap_signals: [
+        { id: 99, signal_type: 'no_website', is_hard: true,
+          description: 'No site', service: 'Website Revamp', sales_copy: '' },
+      ],
+    }
+    mockFetch(mockRun, [leadUnknown])
+    renderLeadResults()
+    await waitFor(() => screen.getByText('Unknown Service Co'))
+    // Unknown service type is silently omitted — no badge rendered
+    expect(screen.queryByText('Website Revamp')).toBeNull()
+  })
 })
 
 // ---------------------------------------------------------------------------
