@@ -4,6 +4,7 @@ import LeadDetailPanel, { type Lead } from './LeadDetailPanel'
 import SkeletonTable from '../components/SkeletonTable'
 import Spinner from '../components/Spinner'
 import ToastContainer, { makeToast, type ToastItem } from '../components/Toast'
+import ServiceBadge, { getServiceBadges } from '../components/ServiceBadge'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -594,6 +595,7 @@ export default function LeadResults() {
                 <th>Phone</th>
                 <th>Gap Score</th>
                 <th>Top Signals</th>
+                <th>Services</th>
               </tr>
             </thead>
             <tbody>
@@ -610,6 +612,11 @@ export default function LeadResults() {
                   <td>
                     {topSignalLabels(lead).map(label => (
                       <span key={label} style={{ marginRight: '0.4rem' }}>{label}</span>
+                    ))}
+                  </td>
+                  <td>
+                    {getServiceBadges(lead.gap_signals).map(service => (
+                      <ServiceBadge key={service} service={service} />
                     ))}
                   </td>
                 </tr>
