@@ -44,6 +44,106 @@ SOFT_SIGNALS = {
     "no_viewport_tag": "No mobile viewport meta tag",
 }
 
+# ---------------------------------------------------------------------------
+# Enrichment lookups — derived at serialisation time, no DB columns needed
+# ---------------------------------------------------------------------------
+
+SIGNAL_SERVICE: dict[str, str] = {
+    "no_website": "Website Build",
+    "broken_website": "Website Build",
+    "no_https": "Website Build",
+    "low_pagespeed": "Website Modernisation",
+    "no_viewport_tag": "Website Modernisation",
+    "missing_meta_title": "SEO Package",
+    "missing_meta_description": "SEO Package",
+    "no_sitemap": "SEO Package",
+    "no_robots_txt": "SEO Package",
+    "no_schema_markup": "SEO Package",
+}
+
+SIGNAL_SALES_COPY: dict[str, str] = {
+    "no_website": (
+        "This business has no website at all — every potential customer who searches "
+        "online hits a dead end before they ever make contact. In a market where "
+        "competitors are just a click away, the absence of any web presence is costing "
+        "them customers daily. Open the conversation around how a professionally built "
+        "site becomes their 24/7 sales rep — a Website Build is the natural entry point."
+    ),
+    "broken_website": (
+        "Their website exists but is unreachable — visitors land on error pages or "
+        "timeouts, which signals an unreliable business and destroys first impressions "
+        "instantly. Search engines will also drop a broken site from rankings. Frame "
+        "the pitch around the risk of lost revenue every day the site stays down: a "
+        "rebuilt Website Build eliminates the problem at its root."
+    ),
+    "no_https": (
+        "This site is flagged as 'Not Secure' by every modern browser, which kills "
+        "trust and conversion rates before a visitor even reads the page. Google also "
+        "penalises non-HTTPS sites in rankings. Frame the conversation around "
+        "credibility and Google ranking — a full Website Build with HTTPS baked in "
+        "from the start is the clean fix."
+    ),
+    "low_pagespeed": (
+        "Their mobile PageSpeed score is critically low, meaning the site loads too "
+        "slowly for most smartphone users who will bounce before it finishes. Google "
+        "uses page speed as a direct ranking signal, so slow sites slip down search "
+        "results over time. The pitch is about modernising the technical foundation — "
+        "a Website Modernisation engagement can get their score into a competitive range."
+    ),
+    "no_viewport_tag": (
+        "The site lacks a mobile viewport tag, so it renders as a shrunken desktop "
+        "page on smartphones — difficult to read, hard to tap, and frustrating to use. "
+        "Given that the majority of local searches happen on mobile, this directly "
+        "impacts how many callers they convert. A Website Modernisation brings "
+        "proper responsive design and fixes this immediately."
+    ),
+    "missing_meta_title": (
+        "There is no page title tag, which means Google has nothing to display in "
+        "search results and must guess — often producing ugly, truncated snippets that "
+        "get ignored. The title is the single highest-impact on-page SEO element. "
+        "Lead with the opportunity: an SEO Package gives every page a crafted title "
+        "that matches what their customers actually search for."
+    ),
+    "missing_meta_description": (
+        "The site has no meta description, so search engines write their own snippet — "
+        "which is rarely compelling or relevant. A strong description acts as free ad "
+        "copy in Google results, driving click-throughs from people actively looking "
+        "for exactly what this business offers. An SEO Package includes optimised "
+        "descriptions that turn impressions into visits."
+    ),
+    "no_sitemap": (
+        "Without a sitemap.xml, search engine crawlers have to discover pages by "
+        "following links alone — meaning new or deeper pages can go unindexed for "
+        "weeks or never. For a business that adds services or content regularly, this "
+        "invisibility costs them organic traffic. An SEO Package includes sitemap "
+        "generation and submission so Google always knows what to index."
+    ),
+    "no_robots_txt": (
+        "The absence of a robots.txt is a small but telling gap — it suggests the "
+        "site was set up without professional SEO care, and it can lead to crawl "
+        "budget waste or accidental indexing of admin pages. It is also an easy early "
+        "win to demonstrate expertise to a prospect. An SEO Package covers this as "
+        "part of a complete technical SEO foundation."
+    ),
+    "no_schema_markup": (
+        "The site has no schema markup, so it misses out on rich results — star "
+        "ratings, business hours, FAQs, and review snippets that appear directly in "
+        "Google search results. Competitors with schema stand out visually while this "
+        "business blends into plain blue links. An SEO Package adds structured data "
+        "that can unlock these higher-visibility result formats."
+    ),
+}
+
+
+def get_signal_service(signal_type: str) -> str:
+    """Return the service category for a given signal type."""
+    return SIGNAL_SERVICE.get(signal_type, "Website Build")
+
+
+def get_signal_sales_copy(signal_type: str) -> str:
+    """Return the sales copy for a given signal type."""
+    return SIGNAL_SALES_COPY.get(signal_type, "")
+
 
 @dataclass
 class GapSignalResult:

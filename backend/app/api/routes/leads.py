@@ -5,10 +5,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
+from app.gap_analyzer.analyzer import get_signal_sales_copy, get_signal_service
 from app.models import GapSignal, Lead, LeadStatus, Note
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -22,8 +23,16 @@ class GapSignalResponse(BaseModel):
     signal_type: str
     is_hard: bool
     description: str
+    service: str = ""
+    sales_copy: str = ""
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def _enrich(self) -> "GapSignalResponse":
+        self.service = get_signal_service(self.signal_type)
+        self.sales_copy = get_signal_sales_copy(self.signal_type)
+        return self
 
 
 class NoteResponse(BaseModel):
