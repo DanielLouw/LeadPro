@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import LeadDetailPanel, { type Lead } from './LeadDetailPanel'
 
 // ---------------------------------------------------------------------------
@@ -102,8 +103,11 @@ function topSignalBreakdown(leads: Lead[]): { type: string; count: number }[] {
 // ---------------------------------------------------------------------------
 
 export default function LeadResults() {
+  const location = useLocation()
+  const routerRunId: number | undefined = (location.state as { runId?: number } | null)?.runId
+
   const [runs, setRuns] = useState<Run[]>([])
-  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(routerRunId ?? null)
   const [leads, setLeads] = useState<Lead[]>([])
   const [loadingRuns, setLoadingRuns] = useState(false)
   const [loadingLeads, setLoadingLeads] = useState(false)
@@ -141,7 +145,12 @@ export default function LeadResults() {
       .then((data: Run[]) => {
         setRuns(data)
         if (data.length > 0) {
-          setSelectedRunId(prev => prev ?? data[0].id)
+          setSelectedRunId(prev => {
+            // If already set (from router state) AND that run still exists, keep it;
+            // otherwise fall back to the first run in the list.
+            if (prev != null && data.some(r => r.id === prev)) return prev
+            return data[0].id
+          })
         }
       })
       .catch(e => setError(e.message))
