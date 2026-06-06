@@ -1,29 +1,5 @@
 import { useEffect, useState } from 'react'
-
-interface GapSignal {
-  id: number
-  signal_type: string
-  is_hard: boolean
-  description: string
-}
-
-interface Lead {
-  id: number
-  run_id: number
-  place_id: string
-  name: string
-  phone: string | null
-  address: string | null
-  city: string | null
-  state: string | null
-  email: string | null
-  website_url: string | null
-  maps_url: string | null
-  gap_score: number
-  status: string
-  gap_signals: GapSignal[]
-  note: { content: string; updated_at: string } | null
-}
+import LeadDetailPanel, { type Lead } from './LeadDetailPanel'
 
 interface Run {
   id: number
@@ -40,6 +16,7 @@ export default function LeadResults() {
   const [loadingRuns, setLoadingRuns] = useState(false)
   const [loadingLeads, setLoadingLeads] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
   useEffect(() => {
     setLoadingRuns(true)
@@ -87,6 +64,11 @@ export default function LeadResults() {
     const hard = lead.gap_signals.filter(s => s.is_hard)
     const soft = lead.gap_signals.filter(s => !s.is_hard)
     return [...hard, ...soft].slice(0, 3).map(s => s.signal_type.replace(/_/g, ' '))
+  }
+
+  function handleLeadUpdated(updated: Lead) {
+    setLeads(prev => prev.map(l => (l.id === updated.id ? updated : l)))
+    setSelectedLead(updated)
   }
 
   return (
@@ -147,12 +129,12 @@ export default function LeadResults() {
           </thead>
           <tbody>
             {leads.map(lead => (
-              <tr key={lead.id}>
-                <td>
-                  {lead.website_url
-                    ? <a href={lead.website_url} target="_blank" rel="noopener noreferrer">{lead.name}</a>
-                    : lead.name}
-                </td>
+              <tr
+                key={lead.id}
+                style={{ cursor: 'pointer' }}
+                onClick={() => setSelectedLead(lead)}
+              >
+                <td>{lead.name}</td>
                 <td>{formatLocation(lead)}</td>
                 <td>{lead.phone ?? '—'}</td>
                 <td>{lead.gap_score.toFixed(1)}</td>
@@ -165,6 +147,14 @@ export default function LeadResults() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {selectedLead && (
+        <LeadDetailPanel
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onLeadUpdated={handleLeadUpdated}
+        />
       )}
     </div>
   )

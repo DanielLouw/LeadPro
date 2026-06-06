@@ -21,14 +21,18 @@ const mockLeads = [
     run_id: 1,
     place_id: 'place_001',
     name: 'Alpha Plumber',
+    address: '1 Main St, Austin, TX 78701',
     city: 'Austin',
     state: 'TX',
     phone: '(512) 555-0001',
+    email: 'alpha@example.com',
     website_url: null,
+    maps_url: 'https://maps.google.com/?q=alpha',
     gap_score: 10.0,
     status: 'new',
+    note: null,
     gap_signals: [
-      { signal_type: 'no_website', is_hard: true, description: 'No website listed' },
+      { id: 1, signal_type: 'no_website', is_hard: true, description: 'No website listed' },
     ],
   },
   {
@@ -36,14 +40,18 @@ const mockLeads = [
     run_id: 1,
     place_id: 'place_002',
     name: 'Beta Plumber',
+    address: '2 Oak Ave, Dallas, TX 75201',
     city: 'Dallas',
     state: 'TX',
     phone: null,
+    email: null,
     website_url: 'https://beta.example.com',
+    maps_url: 'https://maps.google.com/?q=beta',
     gap_score: 4.0,
     status: 'new',
+    note: null,
     gap_signals: [
-      { signal_type: 'missing_meta_title', is_hard: false, description: 'Missing title' },
+      { id: 2, signal_type: 'missing_meta_title', is_hard: false, description: 'Missing title' },
     ],
   },
 ]
@@ -215,5 +223,191 @@ describe('LeadResults — no leads for run', () => {
     await waitFor(() =>
       expect(screen.getByText(/no qualified leads/i)).toBeInTheDocument()
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Detail panel tests (issue #0007)
+// ---------------------------------------------------------------------------
+
+describe('LeadResults — detail panel opens on row click', () => {
+  it('clicking a lead row opens the detail panel with business name', async () => {
+    mockFetch(mockRun, mockLeads)
+    const user = userEvent.setup()
+
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: /lead detail/i })).toBeInTheDocument()
+    )
+  })
+
+  it('detail panel shows business name, address, phone, email, and gap score', async () => {
+    mockFetch(mockRun, mockLeads)
+    const user = userEvent.setup()
+
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    const panel = await screen.findByRole('dialog', { name: /lead detail/i })
+    expect(panel).toHaveTextContent('Alpha Plumber')
+    expect(panel).toHaveTextContent('1 Main St, Austin, TX 78701')
+    expect(panel).toHaveTextContent('(512) 555-0001')
+    expect(panel).toHaveTextContent('alpha@example.com')
+    expect(panel).toHaveTextContent('10.0')
+  })
+
+  it('detail panel lists all gap signals with plain-English descriptions', async () => {
+    mockFetch(mockRun, mockLeads)
+    const user = userEvent.setup()
+
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    const panel = await screen.findByRole('dialog', { name: /lead detail/i })
+    expect(panel).toHaveTextContent('No website listed')
+  })
+
+  it('detail panel has a website link that opens in a new tab', async () => {
+    // Beta Plumber (mockLeads[1]) has website_url set
+    mockFetch(mockRun, mockLeads)
+    const user = userEvent.setup()
+
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Beta Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Beta Plumber'))
+
+    const panel = await screen.findByRole('dialog', { name: /lead detail/i })
+    const websiteLink = panel.querySelector('a[href="https://beta.example.com"]')
+    expect(websiteLink).not.toBeNull()
+    expect(websiteLink).toHaveAttribute('target', '_blank')
+  })
+
+  it('detail panel has a Google Maps link that opens in a new tab', async () => {
+    mockFetch(mockRun, mockLeads)
+    const user = userEvent.setup()
+
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    const panel = await screen.findByRole('dialog', { name: /lead detail/i })
+    const mapsLink = panel.querySelector('a[href="https://maps.google.com/?q=alpha"]')
+    expect(mapsLink).not.toBeNull()
+    expect(mapsLink).toHaveAttribute('target', '_blank')
+  })
+
+  it('detail panel can be closed via a close button', async () => {
+    mockFetch(mockRun, mockLeads)
+    const user = userEvent.setup()
+
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    await screen.findByRole('dialog', { name: /lead detail/i })
+
+    const closeBtn = screen.getByRole('button', { name: /close/i })
+    await user.click(closeBtn)
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: /lead detail/i })).not.toBeInTheDocument()
+    )
+  })
+})
+
+describe('LeadResults — detail panel status selector', () => {
+  it('shows current status in the status selector', async () => {
+    mockFetch(mockRun, mockLeads)
+    const user = userEvent.setup()
+
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    const panel = await screen.findByRole('dialog', { name: /lead detail/i })
+    const statusSelect = panel.querySelector('select[aria-label="Status"]') as HTMLSelectElement | null
+    expect(statusSelect).not.toBeNull()
+    expect(statusSelect!.value).toBe('new')
+  })
+
+  it('changing status calls PATCH /leads/:id/status', async () => {
+    const patchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ...mockLeads[0], status: 'reviewing' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/leads/1/status') && init?.method === 'PATCH') return patchMock(url, init)
+      if (url.includes('/leads/run/')) {
+        return new Response(JSON.stringify(mockLeads), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([mockRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+
+    const user = userEvent.setup()
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    const panel = await screen.findByRole('dialog', { name: /lead detail/i })
+    const statusSelect = panel.querySelector('select[aria-label="Status"]') as HTMLSelectElement
+    await user.selectOptions(statusSelect, 'reviewing')
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalledOnce())
+  })
+})
+
+describe('LeadResults — detail panel notes field', () => {
+  it('shows a notes textarea in the detail panel', async () => {
+    mockFetch(mockRun, mockLeads)
+    const user = userEvent.setup()
+
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    await screen.findByRole('dialog', { name: /lead detail/i })
+    expect(screen.getByRole('textbox', { name: /notes/i })).toBeInTheDocument()
+  })
+
+  it('saving notes on blur calls PATCH /leads/:id/notes', async () => {
+    const patchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ ...mockLeads[0], note: { content: 'Test note', updated_at: new Date().toISOString() } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/leads/1/notes') && init?.method === 'PATCH') return patchMock(url, init)
+      if (url.includes('/leads/run/')) {
+        return new Response(JSON.stringify(mockLeads), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([mockRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+
+    const user = userEvent.setup()
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    await screen.findByRole('dialog', { name: /lead detail/i })
+    const notesField = screen.getByRole('textbox', { name: /notes/i })
+
+    await user.click(notesField)
+    await user.type(notesField, 'Test note')
+    await user.tab() // blur
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalledOnce())
   })
 })
