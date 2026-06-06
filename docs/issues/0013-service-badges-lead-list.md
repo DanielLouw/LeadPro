@@ -22,11 +22,11 @@ Use the `tdd` skill to drive implementation.
 
 ## Acceptance criteria
 
-- [ ] Each lead row in the list shows a badge for each distinct service its gap signals map to
-- [ ] Badges are deduplicated — if a lead has three SEO signals, only one SEO Package badge appears
-- [ ] Each service has a distinct colour, consistent across all rows
-- [ ] Badges are legible at a glance (readable label, sufficient contrast)
-- [ ] Frontend tests cover: correct badge(s) render per lead, deduplication, correct service label text
+- [x] Each lead row in the list shows a badge for each distinct service its gap signals map to
+- [x] Badges are deduplicated — if a lead has three SEO signals, only one SEO Package badge appears
+- [x] Each service has a distinct colour, consistent across all rows
+- [x] Badges are legible at a glance (readable label, sufficient contrast)
+- [x] Frontend tests cover: correct badge(s) render per lead, deduplication, correct service label text
 
 ## Blocked by
 

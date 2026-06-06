@@ -18,8 +18,8 @@ A locally-run lead generation tool with a web dashboard. The user configures a r
 5. As a user, I want to set a maximum results cap per run (defaulting to 500), so that I stay within my Google Places API free tier and avoid surprise billing.
 6. As a user, I want to see an estimated API cost before executing a run, so that I can make an informed decision before committing.
 7. As a user, I want a confirmation step before the run starts, so that I don't accidentally trigger a costly scrape.
-8. As a user, I want the Config Builder to generate a YAML Search Config file from my selections, so that I can reuse, tweak, or version control configs across runs.
-9. As a user, I want to be able to load a previously saved Search Config YAML into the Config Builder, so that I can repeat or modify past runs.
+8. As a user, I want the Config Builder to generate a run from my selections inline — showing the cost estimate and letting me confirm before committing — so that I can go from config to running pipeline in one place without copying YAML or navigating between pages.
+9. ~~As a user, I want to be able to load a previously saved Search Config YAML into the Config Builder.~~ — **Removed.** The Load Config feature was cut in favour of the inline launch flow. Reusing a config is handled by re-selecting options in the UI.
 
 ### Running the Pipeline
 10. As a user, I want to manually trigger a run from the dashboard, so that I remain in control of when data is collected.
@@ -73,7 +73,7 @@ A locally-run lead generation tool with a web dashboard. The user configures a r
     - "HVAC companies in Dallas TX"
   max_results_per_run: 500
   ```
-  The Config Builder generates this file; it can also be hand-edited and loaded back into the UI.
+  The Config Builder generates this file internally. The "Load Config" feature (paste YAML to reload a config) was removed in favour of the inline launch flow.
 
 - **SQLite** stores all Leads, Runs, and Notes persistently. Schema is designed for forward compatibility — new gap signal types and status values can be added without migrations breaking existing data.
 
@@ -87,6 +87,18 @@ A locally-run lead generation tool with a web dashboard. The user configures a r
   - `lead_pipeline` — Search Config in, persisted ranked Leads out (orchestrates the two above)
   - `api` — FastAPI HTTP layer consumed by the React dashboard
 
+- **Gap Signal enrichment** — each Gap Signal object returned by the API includes two derived fields: `service` (one of the three catalogue values) and `sales_copy` (sales-ready pitch prose). These are computed at serialisation time from static lookup tables in `gap_analyzer/analyzer.py` and are never stored in the database. A module-level assertion enforces that the lookup tables cover exactly the same signal types as `HARD_SIGNALS | SOFT_SIGNALS`.
+
+- **Service catalogue** — three fixed values: Website Build, Website Modernisation, SEO Package. Each Gap Signal maps to exactly one. The mapping is the single source of truth in the backend; the frontend receives it via the API and does not hardcode it.
+
+- **Config Builder launch flow** — the Config Builder is a self-contained launch pad. The user builds their config, sees the cost estimate inline, confirms, and is automatically navigated to Lead Results. Lead Results reads the new run ID from React Router state and auto-selects it with progress polling active. The "Load Config" section has been removed.
+
+- **Loading states and toasts** — all async actions show a spinner and disable their trigger button while in flight. The lead list shows a skeleton loader while fetching. Toast notifications (auto-dismiss 3 s, no third-party library, always-mounted ARIA live region) confirm status saves, notes saves, and run submission.
+
+- **UI design tokens** — a CSS custom property system (`--color-*`, `--space-*`, `--font-size-*`, `--control-*`) defined in `index.css` drives consistent form controls, three-tier button styles (primary/secondary/destructive), checkbox spacing, and typography across all pages.
+
+- **Service badges on lead list** — each lead row shows deduplicated colour-coded badges for its distinct service types (Website Build = red, Website Modernisation = amber, SEO Package = blue), derived client-side from the `service` field on each gap signal.
+
 ## Testing Decisions
 
 - **What makes a good test:** tests should exercise external behavior at the module boundary, not internal implementation. A good test says "given this input, I get this output" — not "this internal function was called."
@@ -99,7 +111,7 @@ A locally-run lead generation tool with a web dashboard. The user configures a r
 
 - **`api`** — tested at the HTTP level using FastAPI's TestClient. Tests cover: triggering a run, fetching leads, updating lead status, adding a note, exporting CSV.
 
-- **Dashboard UI** — not automatically tested in MVP. Too much churn at this stage.
+- **Dashboard UI** — tested with Vitest + React Testing Library at the component boundary. Tests cover: Config Builder estimate/confirm flow, Lead Results service badges, skeleton loader, toast notifications, detail panel service label and sales copy, auto-selection of run from router state, CSV export.
 
 ## Out of Scope
 

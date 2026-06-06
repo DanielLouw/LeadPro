@@ -19,15 +19,15 @@ Use the `tdd` skill to drive implementation.
 
 ## Acceptance criteria
 
-- [ ] Skeleton placeholder rows are shown in the lead list while leads are loading
-- [ ] Skeleton disappears and is replaced by real rows once data arrives
-- [ ] All async action buttons are disabled and show a spinner while in flight
-- [ ] A toast notification appears when a lead status is successfully saved
-- [ ] A toast notification appears when lead notes are successfully saved
-- [ ] A toast notification appears when a run is successfully submitted
-- [ ] Toasts auto-dismiss after 3 seconds
-- [ ] Multiple toasts can be queued without replacing each other
-- [ ] Frontend tests cover: skeleton renders while loading, buttons disabled during fetch, toast appears after status save, toast appears after notes save
+- [x] Skeleton placeholder rows are shown in the lead list while leads are loading
+- [x] Skeleton disappears and is replaced by real rows once data arrives
+- [x] All async action buttons are disabled and show a spinner while in flight
+- [x] A toast notification appears when a lead status is successfully saved
+- [x] A toast notification appears when lead notes are successfully saved
+- [x] A toast notification appears when a run is successfully submitted
+- [x] Toasts auto-dismiss after 3 seconds
+- [x] Multiple toasts can be queued without replacing each other
+- [x] Frontend tests cover: skeleton renders while loading, buttons disabled during fetch, toast appears after status save, toast appears after notes save
 
 ## Blocked by
 

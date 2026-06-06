@@ -23,14 +23,14 @@ Use the `tdd` skill to drive implementation.
 
 ## Acceptance criteria
 
-- [ ] "Load Config" section (textarea + button) is removed from the Config Builder
-- [ ] A "Run" button on the Config Builder fetches the cost estimate and displays it inline on the same page
-- [ ] The estimate shows: number of queries, estimated total results, estimated cost in USD
-- [ ] A "Confirm & start run" button submits the run to the backend
-- [ ] After confirmation, the app navigates automatically to the Lead Results page
-- [ ] On arrival, the Lead Results page auto-selects the newly created run and begins progress polling
-- [ ] A "Cancel" option is available at the estimate step to return to editing
-- [ ] Frontend tests cover: Run button triggers estimate display, Confirm submits and navigates, Load Config section absent, Lead Results auto-selects run from router state
+- [x] "Load Config" section (textarea + button) is removed from the Config Builder
+- [x] A "Run" button on the Config Builder fetches the cost estimate and displays it inline on the same page
+- [x] The estimate shows: number of queries, estimated total results, estimated cost in USD
+- [x] A "Confirm & start run" button submits the run to the backend
+- [x] After confirmation, the app navigates automatically to the Lead Results page
+- [x] On arrival, the Lead Results page auto-selects the newly created run and begins progress polling
+- [x] A "Cancel" option is available at the estimate step to return to editing
+- [x] Frontend tests cover: Run button triggers estimate display, Confirm submits and navigates, Load Config section absent, Lead Results auto-selects run from router state
 
 ## Blocked by
 

@@ -17,11 +17,11 @@ Use the `tdd` skill to drive implementation.
 
 ## Acceptance criteria
 
-- [ ] Each gap signal in the detail panel shows its `service` label (Website Build, Website Modernisation, or SEO Package)
-- [ ] Each gap signal shows its full `sales_copy` text
-- [ ] Hard signals remain visually distinct (e.g. bold) from soft signals
-- [ ] Service label is visually associated with its signal
-- [ ] Frontend tests cover: service label renders per signal, sales_copy text renders per signal
+- [x] Each gap signal in the detail panel shows its `service` label (Website Build, Website Modernisation, or SEO Package)
+- [x] Each gap signal shows its full `sales_copy` text
+- [x] Hard signals remain visually distinct (e.g. bold) from soft signals
+- [x] Service label is visually associated with its signal
+- [x] Frontend tests cover: service label renders per signal, sales_copy text renders per signal
 
 ## Blocked by
 

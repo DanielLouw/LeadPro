@@ -31,11 +31,11 @@ Use the `tdd` skill to drive implementation.
 
 ## Acceptance criteria
 
-- [ ] `GET /leads/run/:id` response includes `service` and `sales_copy` on every gap signal object
-- [ ] All 10 signal types map to the correct service value
-- [ ] `sales_copy` is non-empty, sales-ready prose for all 10 signal types
-- [ ] No database schema changes — fields are derived at serialisation time
-- [ ] API tests cover: correct `service` value per signal type, `sales_copy` non-empty for all signal types
+- [x] `GET /leads/run/:id` response includes `service` and `sales_copy` on every gap signal object
+- [x] All 10 signal types map to the correct service value
+- [x] `sales_copy` is non-empty, sales-ready prose for all 10 signal types
+- [x] No database schema changes — fields are derived at serialisation time
+- [x] API tests cover: correct `service` value per signal type, `sales_copy` non-empty for all signal types
 
 ## Blocked by
 

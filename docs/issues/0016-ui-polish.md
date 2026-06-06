@@ -21,12 +21,12 @@ Known pain points to address:
 
 ## Acceptance criteria
 
-- [ ] Business type checkboxes have consistent spacing and are easy to scan and select
-- [ ] Form controls (selects, inputs, textareas) have consistent sizing and spacing throughout the app
-- [ ] Buttons are visually differentiated: primary actions (e.g. confirm, run) are distinct from secondary (e.g. cancel) and destructive actions
-- [ ] Spacing and typography are consistent across Config Builder and Lead Results pages
-- [ ] No existing behaviour or test assertions are broken by style changes
-- [ ] All existing frontend tests continue to pass after the styling pass
+- [x] Business type checkboxes have consistent spacing and are easy to scan and select
+- [x] Form controls (selects, inputs, textareas) have consistent sizing and spacing throughout the app
+- [x] Buttons are visually differentiated: primary actions (e.g. confirm, run) are distinct from secondary (e.g. cancel) and destructive actions
+- [x] Spacing and typography are consistent across Config Builder and Lead Results pages
+- [x] No existing behaviour or test assertions are broken by style changes
+- [x] All existing frontend tests continue to pass after the styling pass
 
 ## Blocked by
 
