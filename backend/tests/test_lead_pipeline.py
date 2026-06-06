@@ -329,3 +329,61 @@ async def test_gap_signals_persisted(db):
     hard_signals = [s for s in signals if s.is_hard]
     assert len(hard_signals) == 1
     assert hard_signals[0].signal_type == "no_website"
+
+
+# ---------------------------------------------------------------------------
+# Test 7 (issue #0006): Max results cap is enforced across all queries
+# ---------------------------------------------------------------------------
+
+async def test_max_results_cap_enforced(db):
+    """
+    When scrape_queries would return more businesses than max_results_per_run,
+    the pipeline must pass the cap down so total raw businesses never exceed it.
+
+    This verifies the cap is read from config_yaml and forwarded to the scraper.
+    """
+    CAP = 3
+    config_yaml = f"queries:\n  - q1\n  - q2\nmax_results_per_run: {CAP}\n"
+
+    # Simulate scraper returning exactly CAP businesses when cap=3 is passed
+    businesses = [
+        RawBusiness(
+            place_id=f"place_{i}",
+            name=f"Biz {i}",
+            address=f"{i} St, Austin, TX 78701, USA",
+            city="Austin",
+            state="TX",
+            phone=None,
+            website_url=None,
+            maps_url=f"https://maps/{i}",
+        )
+        for i in range(CAP)
+    ]
+
+    run = make_run(db, config_yaml)
+
+    captured_max: list[int] = []
+
+    async def mock_scrape(queries, max_results):
+        captured_max.append(max_results)
+        # Return only up to max_results businesses
+        return businesses[:max_results]
+
+    from app.gap_analyzer.analyzer import AnalysisResult, GapSignalResult
+
+    async def mock_analyze(url):
+        return AnalysisResult(
+            gap_signals=[GapSignalResult("no_website", True, "No website")],
+            gap_score=10.0,
+            has_hard_signal=True,
+        )
+
+    with patch("app.lead_pipeline.pipeline.scrape_queries", side_effect=mock_scrape):
+        with patch("app.lead_pipeline.pipeline.analyze", side_effect=mock_analyze):
+            await execute_run(run.id, db)
+
+    # The cap passed to scrape_queries must match the config value
+    assert captured_max == [CAP], f"Expected cap {CAP}, got {captured_max}"
+    # And no more than CAP leads were saved
+    lead_count = db.query(Lead).filter(Lead.run_id == run.id).count()
+    assert lead_count <= CAP

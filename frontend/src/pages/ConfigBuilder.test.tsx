@@ -153,3 +153,34 @@ describe('ConfigBuilder — Load Config (invalid YAML)', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument()
   })
 })
+
+// ── 11. Max results cap field renders with default 500 (issue #0006) ──────────
+describe('ConfigBuilder — max results cap', () => {
+  it('renders a max results cap field with default value 500', () => {
+    render(<ConfigBuilder />)
+    const input = screen.getByRole('spinbutton', { name: /max results cap/i })
+    expect(input).toBeInTheDocument()
+    expect((input as HTMLInputElement).value).toBe('500')
+  })
+
+  it('includes max_results_per_run in generated YAML, reflecting the cap field value', async () => {
+    const user = userEvent.setup()
+    render(<ConfigBuilder />)
+
+    // Select a type and city so YAML generation works
+    await user.click(screen.getByRole('checkbox', { name: /plumbers/i }))
+    await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
+    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
+
+    // Change the cap
+    const capInput = screen.getByRole('spinbutton', { name: /max results cap/i })
+    await user.clear(capInput)
+    await user.type(capInput, '250')
+
+    await user.click(screen.getByRole('button', { name: /generate yaml/i }))
+
+    const textarea = screen.getByRole('textbox', { name: /generated yaml/i })
+    const yamlText = (textarea as HTMLTextAreaElement).value
+    expect(yamlText).toContain('max_results_per_run: 250')
+  })
+})

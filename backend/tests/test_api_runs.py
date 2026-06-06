@@ -158,3 +158,48 @@ def test_post_runs_full_pipeline_mocked(client, test_db):
     assert leads[0]["name"] == biz_name
     assert leads[0]["gap_score"] == 10.0
     assert leads[0]["gap_signals"][0]["signal_type"] == "no_website"
+
+
+# ---------------------------------------------------------------------------
+# POST /runs/estimate — cost estimate (issue #0006)
+# ---------------------------------------------------------------------------
+
+def test_estimate_returns_cost_breakdown(client):
+    """
+    POST /runs/estimate with a config YAML returns:
+      - query_count: number of queries in the config
+      - estimated_results: min(query_count * results_per_request, max_results_per_run)
+      - estimated_cost_usd: a positive float
+    """
+    config = "queries:\n  - plumbers in Austin TX\n  - hvac in Dallas TX\nmax_results_per_run: 100\n"
+    resp = client.post("/runs/estimate", json={"config_yaml": config})
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["query_count"] == 2
+    assert isinstance(data["estimated_results"], int)
+    assert data["estimated_results"] > 0
+    assert data["estimated_results"] <= 100          # never exceeds cap
+    assert isinstance(data["estimated_cost_usd"], float)
+    assert data["estimated_cost_usd"] > 0
+
+
+def test_estimate_respects_max_results_cap(client):
+    """
+    When query_count * results_per_page would exceed max_results_per_run,
+    estimated_results is clamped to max_results_per_run.
+    """
+    # 5 queries × 20 results = 100 potential results, but cap is 30
+    queries = "\n".join(f"  - query {i}" for i in range(5))
+    config = f"queries:\n{queries}\nmax_results_per_run: 30\n"
+    resp = client.post("/runs/estimate", json={"config_yaml": config})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["estimated_results"] == 30
+
+
+def test_estimate_returns_400_for_missing_queries(client):
+    """POST /runs/estimate with YAML that has no queries returns 400."""
+    config = "max_results_per_run: 500\n"
+    resp = client.post("/runs/estimate", json={"config_yaml": config})
+    assert resp.status_code == 400

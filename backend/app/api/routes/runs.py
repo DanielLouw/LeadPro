@@ -1,9 +1,15 @@
-import asyncio
+import math
 
+import yaml
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.config import (
+    DEFAULT_MAX_RESULTS_PER_RUN,
+    PLACES_COST_PER_1000_REQUESTS,
+    PLACES_RESULTS_PER_REQUEST,
+)
 from app.database import get_db
 from app.lead_pipeline.pipeline import execute_run
 from app.models import Run
@@ -23,6 +29,45 @@ class RunResponse(BaseModel):
     config_yaml: str
 
     model_config = {"from_attributes": True}
+
+
+class RunEstimateResponse(BaseModel):
+    query_count: int
+    estimated_results: int
+    estimated_cost_usd: float
+
+
+@router.post("/estimate", response_model=RunEstimateResponse)
+def estimate_run_cost(body: CreateRunRequest) -> RunEstimateResponse:
+    """Return a cost estimate for a run without executing it."""
+    try:
+        config = yaml.safe_load(body.config_yaml)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {exc}") from exc
+
+    if not isinstance(config, dict):
+        raise HTTPException(status_code=400, detail="Config must be a YAML mapping")
+
+    queries = config.get("queries", [])
+    if not isinstance(queries, list) or not queries:
+        raise HTTPException(status_code=400, detail="Config must include at least one query")
+
+    max_results: int = config.get("max_results_per_run", DEFAULT_MAX_RESULTS_PER_RUN)
+    query_count = len(queries)
+
+    # Upper bound: each query can yield at most PLACES_RESULTS_PER_REQUEST results
+    # (a single page). Capped by max_results_per_run.
+    estimated_results = min(query_count * PLACES_RESULTS_PER_REQUEST, max_results)
+
+    # Requests needed = one per page; each page delivers PLACES_RESULTS_PER_REQUEST results
+    requests_needed = math.ceil(estimated_results / PLACES_RESULTS_PER_REQUEST)
+    estimated_cost_usd = (requests_needed / 1000) * PLACES_COST_PER_1000_REQUESTS
+
+    return RunEstimateResponse(
+        query_count=query_count,
+        estimated_results=estimated_results,
+        estimated_cost_usd=estimated_cost_usd,
+    )
 
 
 @router.post("/", response_model=RunResponse, status_code=201)
