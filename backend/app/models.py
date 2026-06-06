@@ -46,6 +46,8 @@ class Run(Base):
         nullable=False,
     )
     total_leads: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    queries_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    queries_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     leads: Mapped[list["Lead"]] = relationship("Lead", back_populates="run", cascade="all, delete-orphan")

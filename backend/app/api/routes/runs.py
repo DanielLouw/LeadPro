@@ -1,5 +1,3 @@
-import asyncio
-
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -25,6 +23,15 @@ class RunResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RunProgressResponse(BaseModel):
+    status: str
+    queries_completed: int
+    queries_total: int
+    leads_found: int
+
+    model_config = {"from_attributes": True}
+
+
 @router.post("/", response_model=RunResponse, status_code=201)
 async def create_run(body: CreateRunRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     run = Run(config_yaml=body.config_yaml, status="pending", total_leads=0)
@@ -39,6 +46,19 @@ async def create_run(body: CreateRunRequest, background_tasks: BackgroundTasks, 
 @router.get("/", response_model=list[RunResponse])
 def list_runs(db: Session = Depends(get_db)):
     return db.query(Run).order_by(Run.created_at.desc()).all()
+
+
+@router.get("/{run_id}/progress", response_model=RunProgressResponse)
+def get_run_progress(run_id: int, db: Session = Depends(get_db)):
+    run = db.get(Run, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return RunProgressResponse(
+        status=run.status,
+        queries_completed=run.queries_completed,
+        queries_total=run.queries_total,
+        leads_found=run.total_leads,
+    )
 
 
 @router.get("/{run_id}", response_model=RunResponse)

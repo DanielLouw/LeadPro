@@ -1,18 +1,20 @@
 import csv
 import io
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import Lead, LeadStatus, Note
+from app.models import GapSignal, Lead, LeadStatus, Note
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
 VALID_STATUSES = {s.value for s in LeadStatus}
+VALID_SORT_FIELDS = {"gap_score", "name", "city"}
 
 
 class GapSignalResponse(BaseModel):
@@ -63,15 +65,59 @@ def _lead_options():
     return [selectinload(Lead.gap_signals), selectinload(Lead.note)]
 
 
+def _validate_statuses(statuses: list[str]) -> None:
+    """Raise 422 if any status value is not a valid LeadStatus."""
+    invalid = [s for s in statuses if s not in VALID_STATUSES]
+    if invalid:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid status values: {invalid}. Must be one of: {sorted(VALID_STATUSES)}",
+        )
+
+
+def _validate_sort(sort: str) -> None:
+    """Raise 422 if the sort field is not recognised."""
+    if sort not in VALID_SORT_FIELDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid sort field '{sort}'. Must be one of: {sorted(VALID_SORT_FIELDS)}",
+        )
+
+
 @router.get("/run/{run_id}", response_model=list[LeadResponse])
-def get_leads_for_run(run_id: int, db: Session = Depends(get_db)):
-    return (
-        db.query(Lead)
-        .options(*_lead_options())
-        .filter(Lead.run_id == run_id)
-        .order_by(Lead.gap_score.desc())
-        .all()
-    )
+def get_leads_for_run(
+    run_id: int,
+    signal_types: Annotated[list[str], Query()] = None,
+    statuses: Annotated[list[str], Query()] = None,
+    sort: str = "gap_score",
+    db: Session = Depends(get_db),
+):
+    signal_types = signal_types or []
+    statuses = statuses or []
+
+    if statuses:
+        _validate_statuses(statuses)
+    _validate_sort(sort)
+
+    query = db.query(Lead).options(*_lead_options()).filter(Lead.run_id == run_id)
+
+    if signal_types:
+        # Keep only leads that have at least one matching signal type (subquery approach)
+        query = query.filter(
+            Lead.gap_signals.any(GapSignal.signal_type.in_(signal_types))
+        )
+
+    if statuses:
+        query = query.filter(Lead.status.in_(statuses))
+
+    if sort == "name":
+        query = query.order_by(Lead.name.asc())
+    elif sort == "city":
+        query = query.order_by(Lead.city.asc())
+    else:  # gap_score (default)
+        query = query.order_by(Lead.gap_score.desc())
+
+    return query.all()
 
 
 @router.get("/{lead_id}", response_model=LeadResponse)

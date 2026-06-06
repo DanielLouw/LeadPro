@@ -9,6 +9,7 @@ Only businesses with at least one hard gap signal are saved as Leads.
 
 import asyncio
 import logging
+from typing import Callable
 
 import yaml
 from sqlalchemy.orm import Session
@@ -29,16 +30,26 @@ async def execute_run(run_id: int, db: Session) -> None:
     if run is None:
         raise ValueError(f"Run {run_id} not found")
 
+    config = yaml.safe_load(run.config_yaml)
+    queries: list[str] = config.get("queries", [])
+    max_results: int = config.get("max_results_per_run", 500)
+
     run.status = RunStatus.running.value
+    run.queries_completed = 0
     db.commit()
 
     try:
-        config = yaml.safe_load(run.config_yaml)
-        queries: list[str] = config.get("queries", [])
-        max_results: int = config.get("max_results_per_run", 500)
-
         raw_businesses = await scrape_queries(queries, max_results)
-        leads = await _analyze_businesses(raw_businesses)
+
+        # Update total now that we know how many businesses to analyse
+        run = db.get(Run, run_id)
+        run.queries_total = len(raw_businesses)
+        db.commit()
+
+        leads = await _analyze_businesses(
+            raw_businesses,
+            on_query_complete=lambda completed: _update_progress(db, run_id, completed),
+        )
 
         for lead_data in leads:
             lead = Lead(
@@ -69,13 +80,16 @@ async def execute_run(run_id: int, db: Session) -> None:
                 )
             db.add(Note(lead_id=lead.id, content=""))
 
+        run = db.get(Run, run_id)  # re-fetch after potential progress commits
         run.total_leads = len(leads)
+        run.queries_completed = run.queries_total
         run.status = RunStatus.completed.value
         db.commit()
 
     except Exception as exc:
         logger.exception("Run %d failed", run_id)
         db.rollback()  # discard any partial leads flushed before the failure
+        run = db.get(Run, run_id)
         run.status = RunStatus.failed.value
         run.error_message = str(exc)
         try:
@@ -85,13 +99,32 @@ async def execute_run(run_id: int, db: Session) -> None:
         raise
 
 
-async def _analyze_businesses(raw: list[RawBusiness]) -> list[dict]:
+def _update_progress(db: Session, run_id: int, queries_completed: int) -> None:
+    """Persist incremental progress to the run row so polling clients can see it."""
+    try:
+        run = db.get(Run, run_id)
+        if run:
+            run.queries_completed = queries_completed
+            db.commit()
+    except Exception:
+        logger.warning("Run %d: failed to update progress counter", run_id)
+
+
+async def _analyze_businesses(
+    raw: list[RawBusiness],
+    on_query_complete: Callable[[int], None] | None = None,
+) -> list[dict]:
     """Analyze all businesses concurrently, returning only those with hard gap signals."""
     semaphore = asyncio.Semaphore(_ANALYSIS_CONCURRENCY)
+    completed_count = 0
 
     async def analyze_one(biz: RawBusiness) -> dict | None:
+        nonlocal completed_count
         async with semaphore:
             result = await analyze(biz.website_url)
+        completed_count += 1
+        if on_query_complete:
+            on_query_complete(completed_count)
         if not result.qualifies_as_lead():
             return None
         return {
