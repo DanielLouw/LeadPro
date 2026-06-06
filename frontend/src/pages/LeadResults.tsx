@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import LeadDetailPanel, { type Lead } from './LeadDetailPanel'
+import SkeletonTable from '../components/SkeletonTable'
+import Spinner from '../components/Spinner'
+import ToastContainer, { makeToast, type ToastItem } from '../components/Toast'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,6 +112,18 @@ export default function LeadResults() {
   const [loadingLeads, setLoadingLeads] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+
+  // Toast queue
+  const [toasts, setToasts] = useState<ToastItem[]>([])
+  const [exportingCsv, setExportingCsv] = useState(false)
+
+  const addToast = useCallback((message: string, type: ToastItem['type'] = 'success') => {
+    setToasts(prev => [...prev, makeToast(message, type)])
+  }, [])
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }, [])
 
   // New-run flow
   const [newRunStep, setNewRunStep] = useState<NewRunStep>({ kind: 'idle' })
@@ -320,6 +335,7 @@ export default function LeadResults() {
       setSelectedRunId(newRun.id)
       setLeads([])
       setNewRunStep({ kind: 'idle' })
+      addToast('Run submitted successfully')
     } catch (e: unknown) {
       setNewRunError(e instanceof Error ? e.message : String(e))
       setNewRunStep({ kind: 'confirm', configYaml, estimate })
@@ -342,6 +358,7 @@ export default function LeadResults() {
 
   function handleExportCsv() {
     if (selectedRunId == null) return
+    setExportingCsv(true)
     const url = `/api/runs/${selectedRunId}/leads/export`
     fetch(url)
       .then(r => {
@@ -359,6 +376,7 @@ export default function LeadResults() {
         URL.revokeObjectURL(objectUrl)
       })
       .catch(e => setError(e.message))
+      .finally(() => setExportingCsv(false))
   }
 
   // ---------------------------------------------------------------------------
@@ -440,7 +458,7 @@ export default function LeadResults() {
               onClick={handleFetchEstimate}
               disabled={newRunStep.kind === 'estimating' || !newRunStep.configYaml.trim()}
             >
-              {newRunStep.kind === 'estimating' ? 'Estimating…' : 'Start new run'}
+              {newRunStep.kind === 'estimating' ? <><Spinner />Estimating…</> : 'Start new run'}
             </button>
             <button onClick={handleCancelNewRun}>Cancel</button>
           </div>
@@ -460,7 +478,7 @@ export default function LeadResults() {
               onClick={handleConfirmRun}
               disabled={newRunStep.kind === 'submitting'}
             >
-              {newRunStep.kind === 'submitting' ? 'Starting…' : 'Confirm & start run'}
+              {newRunStep.kind === 'submitting' ? <><Spinner />Starting…</> : 'Confirm & start run'}
             </button>
             <button onClick={handleCancelNewRun} disabled={newRunStep.kind === 'submitting'}>
               Cancel
@@ -529,7 +547,7 @@ export default function LeadResults() {
         </section>
       )}
 
-      {loadingLeads && <p>Loading leads…</p>}
+      {loadingLeads && <SkeletonTable />}
 
       {!loadingLeads && leads.length === 0 && selectedRunId != null && !error && (
         <p>No qualified leads for this run.</p>
@@ -554,7 +572,9 @@ export default function LeadResults() {
           </section>
 
           <div style={{ marginBottom: '0.75rem' }}>
-            <button onClick={handleExportCsv}>Export CSV</button>
+            <button onClick={handleExportCsv} disabled={exportingCsv}>
+              {exportingCsv ? <><Spinner />Exporting…</> : 'Export CSV'}
+            </button>
           </div>
 
           <table aria-label="Lead results">
@@ -595,8 +615,11 @@ export default function LeadResults() {
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
           onLeadUpdated={handleLeadUpdated}
+          onToast={addToast}
         />
       )}
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }

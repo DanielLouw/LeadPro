@@ -759,6 +759,272 @@ describe('LeadResults — progress indicator', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Issue #0015: Loading states and toast notifications
+// ---------------------------------------------------------------------------
+
+describe('LeadResults — skeleton loader while leads are loading', () => {
+  it('shows skeleton rows while leads are being fetched', async () => {
+    // Arrange: fetch for leads never resolves until after we check
+    let resolveLead: (v: Response) => void
+    const leadsPromise = new Promise<Response>(res => { resolveLead = res })
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/leads')) return leadsPromise
+      return new Response(JSON.stringify([mockRun]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+
+    render(<LeadResults />)
+
+    // Wait until run is loaded (selector appears), then check for skeleton
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
+    )
+
+    // Skeleton should be visible while leads are still in-flight
+    expect(screen.getByRole('status', { name: /loading leads/i })).toBeInTheDocument()
+
+    // Resolve the lead fetch so we don't leak
+    resolveLead!(new Response(JSON.stringify(mockLeads), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+  })
+
+  it('replaces skeleton with real rows once leads arrive', async () => {
+    mockFetch(mockRun, mockLeads)
+
+    render(<LeadResults />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument()
+    )
+
+    expect(screen.queryByRole('status', { name: /loading leads/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha Plumber')).toBeInTheDocument()
+  })
+})
+
+describe('LeadResults — Export CSV button disabled while exporting', () => {
+  it('disables the Export CSV button while the export is in-flight', async () => {
+    let resolveExport: (v: Response) => void
+    const exportPromise = new Promise<Response>(res => { resolveExport = res })
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/export')) return exportPromise
+      if (url.includes('/leads')) {
+        return new Response(JSON.stringify(mockLeads), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify([mockRun]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+    globalThis.URL.revokeObjectURL = vi.fn()
+
+    const user = userEvent.setup()
+    render(<LeadResults />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByRole('button', { name: /export csv/i }))
+
+    // While export is in-flight, button text changes to Exporting… and is disabled
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /exporting/i })).toBeDisabled()
+    )
+
+    // Clean up — resolve export
+    resolveExport!(new Response('data', { status: 200 }))
+  })
+})
+
+describe('LeadResults — toast notification on run submitted', () => {
+  it('shows a success toast after a new run is submitted successfully', async () => {
+    const estimateResponse = {
+      query_count: 2,
+      estimated_results: 40,
+      estimated_cost_usd: 0.064,
+    }
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/runs/estimate')) {
+        return new Response(JSON.stringify(estimateResponse), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('/leads')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('/runs/') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({ id: 99, status: 'pending', total_leads: 0, config_yaml: '', error_message: null }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response(JSON.stringify([mockRun]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+
+    const user = userEvent.setup()
+    render(<LeadResults />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
+    )
+
+    // Trigger start new run (uses existing config yaml from mockRun so goes straight to estimate)
+    await user.click(screen.getByRole('button', { name: /start new run/i }))
+
+    // Wait for estimate panel
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument()
+    )
+
+    // Confirm the run
+    await user.click(screen.getByRole('button', { name: /confirm/i }))
+
+    // Toast should appear
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: /notifications/i })).toBeInTheDocument()
+    )
+    expect(screen.getByRole('status', { name: /notifications/i })).toHaveTextContent(/run submitted/i)
+  })
+})
+
+describe('LeadResults — detail panel toast on status saved', () => {
+  it('shows a success toast after status is saved in the detail panel', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/leads/1/status') && init?.method === 'PATCH') {
+        return new Response(
+          JSON.stringify({ ...mockLeads[0], status: 'reviewing' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      if (url.includes('/leads/run/')) {
+        return new Response(JSON.stringify(mockLeads), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([mockRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+
+    const user = userEvent.setup()
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    const panel = await screen.findByRole('dialog', { name: /lead detail/i })
+    const statusSelect = panel.querySelector('select[aria-label="Status"]') as HTMLSelectElement
+    await user.selectOptions(statusSelect, 'reviewing')
+
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: /notifications/i })).toBeInTheDocument()
+    )
+    expect(screen.getByRole('status', { name: /notifications/i })).toHaveTextContent(/status saved/i)
+  })
+})
+
+describe('LeadResults — detail panel toast on notes saved', () => {
+  it('shows a success toast after notes are saved in the detail panel', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/leads/1/notes') && init?.method === 'PATCH') {
+        return new Response(
+          JSON.stringify({ ...mockLeads[0], note: { content: 'Test', updated_at: new Date().toISOString() } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      if (url.includes('/leads/run/')) {
+        return new Response(JSON.stringify(mockLeads), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([mockRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+
+    const user = userEvent.setup()
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+    await user.click(screen.getByText('Alpha Plumber'))
+
+    await screen.findByRole('dialog', { name: /lead detail/i })
+    const notesField = screen.getByRole('textbox', { name: /notes/i })
+
+    await user.click(notesField)
+    await user.type(notesField, 'Test')
+    await user.tab()
+
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: /notifications/i })).toBeInTheDocument()
+    )
+    expect(screen.getByRole('status', { name: /notifications/i })).toHaveTextContent(/notes saved/i)
+  })
+})
+
+describe('LeadResults — multiple toasts can queue', () => {
+  it('shows multiple toasts simultaneously without replacing each other', async () => {
+    // Use real timers — toasts auto-dismiss after 3 s; we verify both appear before that.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/leads/1/status') && init?.method === 'PATCH') {
+        return new Response(
+          JSON.stringify({ ...mockLeads[0], status: 'reviewing' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      if (url.includes('/leads/1/notes') && init?.method === 'PATCH') {
+        return new Response(
+          JSON.stringify({ ...mockLeads[0], note: { content: 'hi', updated_at: new Date().toISOString() } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      if (url.includes('/leads/run/') || url.includes('/leads')) {
+        return new Response(JSON.stringify(mockLeads), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([mockRun]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+
+    const user = userEvent.setup()
+    render(<LeadResults />)
+    await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
+
+    // Open detail panel and change status → first toast
+    await user.click(screen.getByText('Alpha Plumber'))
+    const panel = await screen.findByRole('dialog', { name: /lead detail/i })
+    const statusSelect = panel.querySelector('select[aria-label="Status"]') as HTMLSelectElement
+    await user.selectOptions(statusSelect, 'reviewing')
+    await waitFor(() => expect(screen.getByText(/status saved/i)).toBeInTheDocument())
+
+    // Save notes immediately (before the first toast's 3 s dismiss fires) → second toast
+    const notesField = screen.getByRole('textbox', { name: /notes/i })
+    await user.click(notesField)
+    await user.type(notesField, 'hi')
+    await user.tab()
+    await waitFor(() => expect(screen.getByText(/notes saved/i)).toBeInTheDocument())
+
+    // Both toasts must be present simultaneously in the DOM
+    expect(screen.getByText(/status saved/i)).toBeInTheDocument()
+    expect(screen.getByText(/notes saved/i)).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Issue #0010: CSV export
 // ---------------------------------------------------------------------------
 
