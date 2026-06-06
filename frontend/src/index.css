@@ -273,7 +273,6 @@ a {
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-secondary);
+  padding: 0;
   margin-bottom: var(--space-2);
-  float: left;
-  width: 100%;
 }
