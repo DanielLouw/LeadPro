@@ -79,11 +79,15 @@ export default function ConfigBuilder() {
   }
 
   function handleCustomKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && customInput.trim()) {
+    if (e.key !== 'Enter') return
+    if (customInput.trim()) {
       const name = customInput.trim()
       setCustomTypes(prev => [...prev, { name, checked: true }])
       setSelectedTypes(prev => new Set([...prev, name]))
       setCustomInput('')
+    } else {
+      // Empty input + Enter → trigger Run if ready
+      handleRun()
     }
   }
 
@@ -103,14 +107,15 @@ export default function ConfigBuilder() {
   }
 
   /** Build config YAML from current selections (internal use only). */
-  function buildConfigYaml(): string {
+  function buildConfigYaml(extraType?: string): string {
     const builtInSelected = businessTypes
       .flatMap(g => g.types)
       .filter(t => selectedTypes.has(t))
     const customSelected = customTypes
       .map(ct => ct.name)
       .filter(name => selectedTypes.has(name))
-    const allTypes = [...builtInSelected, ...customSelected]
+    const extra = extraType && !selectedTypes.has(extraType) ? [extraType] : []
+    const allTypes = [...builtInSelected, ...customSelected, ...extra]
 
     const queries: string[] = []
     for (const city of selectedCities) {
@@ -126,7 +131,14 @@ export default function ConfigBuilder() {
     if (estimatingRef.current) return
     estimatingRef.current = true
     setRunError(null)
-    const configYaml = buildConfigYaml()
+    // Commit any text still in the custom input field
+    const pendingType = customInput.trim()
+    if (pendingType) {
+      setCustomTypes(prev => [...prev, { name: pendingType, checked: true }])
+      setSelectedTypes(prev => new Set([...prev, pendingType]))
+      setCustomInput('')
+    }
+    const configYaml = buildConfigYaml(pendingType || undefined)
     setStep({ kind: 'estimating' })
 
     try {
@@ -327,7 +339,7 @@ export default function ConfigBuilder() {
           <button
             className="btn btn-primary"
             onClick={handleRun}
-            disabled={selectedTypes.size === 0 || selectedCities.length === 0}
+            disabled={(selectedTypes.size === 0 && !customInput.trim()) || selectedCities.length === 0}
           >
             Run
           </button>
