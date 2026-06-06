@@ -180,7 +180,7 @@ export default function ConfigBuilder() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '24px', color: '#111827' }}>
+      <h1 className="lp-page-title">
         Config Builder
       </h1>
 

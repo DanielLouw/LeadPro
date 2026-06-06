@@ -395,7 +395,7 @@ export default function LeadResults() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '24px', color: '#111827' }}>
+      <h1 className="lp-page-title">
         Lead Results
       </h1>
 
@@ -471,7 +471,7 @@ export default function LeadResults() {
                 setNewRunStep({ kind: 'input', configYaml: e.target.value })
               }
               disabled={newRunStep.kind === 'estimating'}
-              style={{ marginBottom: '12px', fontFamily: 'monospace', fontSize: '13px' }}
+              style={{ marginBottom: '12px', fontFamily: 'monospace', fontSize: 'var(--font-size-sm)' }}
             />
             <div className="lp-row">
               <button

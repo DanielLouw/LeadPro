@@ -100,7 +100,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
         right: 0,
         bottom: 0,
         width: '440px',
-        background: '#fff',
+        background: 'var(--color-surface)',
         boxShadow: '-4px 0 24px rgba(0,0,0,0.12)',
         overflowY: 'auto',
         padding: '24px',
