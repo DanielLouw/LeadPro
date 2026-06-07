@@ -70,7 +70,7 @@ def _seed_run_with_leads(test_db) -> tuple[int, list[int]]:
 
         lead1 = Lead(
             run_id=run.id,
-            place_id="place_001",
+            external_id="place_001",
             name="Alpha Plumber",
             phone="(512) 555-0001",
             address="1 Main St",
@@ -90,7 +90,7 @@ def _seed_run_with_leads(test_db) -> tuple[int, list[int]]:
 
         lead2 = Lead(
             run_id=run.id,
-            place_id="place_002",
+            external_id="place_002",
             name="Beta Plumber",
             phone=None,
             address=None,

@@ -76,15 +76,15 @@ def _seed_run_with_leads(test_db) -> int:
         db.flush()
 
         leads_data = [
-            dict(place_id="p1", name="Ace Plumber",  city="Austin",  state="TX", gap_score=9.0, status="new",       signals=[("no_website", True)]),
-            dict(place_id="p2", name="Beta Roofing", city="Boston",  state="MA", gap_score=6.0, status="reviewing", signals=[("missing_meta_title", False)]),
-            dict(place_id="p3", name="Cedar HVAC",   city="Chicago", state="IL", gap_score=3.0, status="contacted", signals=[("no_website", True), ("poor_reviews", False)]),
+            dict(external_id="p1", name="Ace Plumber",  city="Austin",  state="TX", gap_score=9.0, status="new",       signals=[("no_website", True)]),
+            dict(external_id="p2", name="Beta Roofing", city="Boston",  state="MA", gap_score=6.0, status="reviewing", signals=[("missing_meta_title", False)]),
+            dict(external_id="p3", name="Cedar HVAC",   city="Chicago", state="IL", gap_score=3.0, status="contacted", signals=[("no_website", True), ("poor_reviews", False)]),
         ]
 
         for ld in leads_data:
             lead = Lead(
                 run_id=run.id,
-                place_id=ld["place_id"],
+                external_id=ld["external_id"],
                 name=ld["name"],
                 city=ld["city"],
                 state=ld["state"],

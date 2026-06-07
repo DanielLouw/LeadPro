@@ -52,7 +52,7 @@ max_results_per_run: 50
 """
 
 GOOD_BIZ = RawBusiness(
-    place_id="place_001",
+    external_id="place_001",
     name="Good Plumber",
     address="1 Main St, Austin, TX 78701, USA",
     city="Austin",
@@ -63,7 +63,7 @@ GOOD_BIZ = RawBusiness(
 )
 
 BAD_BIZ = RawBusiness(
-    place_id="place_002",
+    external_id="place_002",
     name="Great Website Co",
     address="2 Oak Ave, Austin, TX 78702, USA",
     city="Austin",
@@ -74,7 +74,7 @@ BAD_BIZ = RawBusiness(
 )
 
 BROKEN_BIZ = RawBusiness(
-    place_id="place_003",
+    external_id="place_003",
     name="Broken Site Co",
     address="3 Elm St, Austin, TX 78703, USA",
     city="Austin",
@@ -103,7 +103,7 @@ async def test_leads_created_and_ranked(db):
     ranked by gap_score descending.
     """
     biz_a = RawBusiness(
-        place_id="place_a",
+        external_id="place_a",
         name="Biz A",
         address="1 A St, Austin, TX 78701, USA",
         city="Austin",
@@ -113,7 +113,7 @@ async def test_leads_created_and_ranked(db):
         maps_url="https://maps/a",
     )
     biz_b = RawBusiness(
-        place_id="place_b",
+        external_id="place_b",
         name="Biz B",
         address="2 B St, Austin, TX 78701, USA",
         city="Austin",
@@ -167,7 +167,7 @@ async def test_businesses_without_hard_signals_excluded(db):
     Pipeline with one business that has only soft signals → not saved as a lead.
     """
     biz = RawBusiness(
-        place_id="place_clean",
+        external_id="place_clean",
         name="Clean Site",
         address="1 Clean St, Austin, TX 78701, USA",
         city="Austin",
@@ -348,7 +348,7 @@ async def test_max_results_cap_enforced(db):
     # Simulate scraper returning exactly CAP businesses when cap=3 is passed
     businesses = [
         RawBusiness(
-            place_id=f"place_{i}",
+            external_id=f"place_{i}",
             name=f"Biz {i}",
             address=f"{i} St, Austin, TX 78701, USA",
             city="Austin",
