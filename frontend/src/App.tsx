@@ -2,6 +2,7 @@ import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import ConfigBuilder from './pages/ConfigBuilder'
 import LeadResults from './pages/LeadResults'
 import SettingsPage from './pages/SettingsPage'
+import RunTrackerWidget from './components/RunTrackerWidget'
 import './App.css'
 
 export default function App() {
@@ -15,6 +16,9 @@ export default function App() {
           <Link to="/" className={pathname === '/' ? 'active' : ''}>Config Builder</Link>
           <Link to="/leads" className={pathname === '/leads' ? 'active' : ''}>Lead Results</Link>
           <Link to="/settings" className={pathname === '/settings' ? 'active' : ''}>Settings</Link>
+        </div>
+        <div style={{ marginLeft: 'auto' }}>
+          <RunTrackerWidget />
         </div>
       </nav>
       <main className="main">

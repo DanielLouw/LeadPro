@@ -1,6 +1,7 @@
 import csv
 import io
 import math
+from datetime import date
 
 import yaml
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -8,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
+from app.budget import get_monthly_spend
 from app.config import (
     DEFAULT_MAX_RESULTS_PER_RUN,
     PLACES_COST_PER_1000_REQUESTS,
@@ -15,7 +17,7 @@ from app.config import (
 )
 from app.database import get_db
 from app.lead_pipeline.pipeline import execute_run
-from app.models import Lead, Run
+from app.models import Lead, Run, Settings
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -47,6 +49,46 @@ class RunProgressResponse(BaseModel):
     leads_found: int
 
     model_config = {"from_attributes": True}
+
+
+class SpendGroupResponse(BaseModel):
+    spent_usd: float
+    budget_usd: float
+    remaining_usd: float
+
+
+class MonthlySpendResponse(BaseModel):
+    google_places: SpendGroupResponse
+    apify: SpendGroupResponse
+
+
+@router.get("/monthly-spend", response_model=MonthlySpendResponse)
+def get_monthly_spend_summary(db: Session = Depends(get_db)) -> MonthlySpendResponse:
+    """Return current calendar month spend and remaining budget for each source group."""
+    settings = db.query(Settings).first()
+    if settings is None:
+        raise HTTPException(status_code=404, detail="Settings not found")
+
+    today = date.today()
+
+    gp_spent = get_monthly_spend(db, "google_places", today)
+    gp_budget = settings.google_places_monthly_budget_usd
+
+    apify_spent = get_monthly_spend(db, "apify", today)
+    apify_budget = settings.apify_monthly_budget_usd
+
+    return MonthlySpendResponse(
+        google_places=SpendGroupResponse(
+            spent_usd=gp_spent,
+            budget_usd=gp_budget,
+            remaining_usd=gp_budget - gp_spent,
+        ),
+        apify=SpendGroupResponse(
+            spent_usd=apify_spent,
+            budget_usd=apify_budget,
+            remaining_usd=apify_budget - apify_spent,
+        ),
+    )
 
 
 @router.post("/estimate", response_model=RunEstimateResponse)
