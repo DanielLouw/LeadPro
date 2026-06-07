@@ -230,3 +230,87 @@ source_config:
     db.refresh(run)
     assert run.status == RunStatus.completed.value
     assert run.total_leads == 1
+
+
+# ---------------------------------------------------------------------------
+# Cycle 11: execute_run() writes cost_usd for apify_facebook_pages runs
+# ---------------------------------------------------------------------------
+
+async def test_execute_run_writes_cost_usd_for_apify_facebook_pages(db):
+    """
+    After an apify_facebook_pages run completes, run.cost_usd must be set using
+    the Apify Facebook Pages rate: total_leads * APIFY_FACEBOOK_PAGES_COST_PER_LEAD.
+    """
+    from app.config import APIFY_FACEBOOK_PAGES_COST_PER_LEAD
+
+    config_yaml = """\
+source: apify_facebook_pages
+max_results_per_run: 10
+source_config:
+  query: plumbers Austin Texas
+"""
+    run = make_run(db, config_yaml)
+    run.source = "apify_facebook_pages"
+    db.commit()
+
+    fb_biz = RawBusiness(
+        external_id="fb_page_001",
+        name="Austin Plumbers Co",
+        address=None,
+        city=None,
+        state=None,
+        phone="+1-512-555-0001",
+        website_url=None,
+        maps_url=None,
+    )
+
+    with patch("app.lead_pipeline.pipeline.ADAPTER_REGISTRY") as mock_registry:
+        mock_adapter = MagicMock()
+        mock_adapter.fetch = AsyncMock(return_value=[fb_biz])
+        mock_registry.__getitem__ = MagicMock(return_value=mock_adapter)
+
+        with patch("app.lead_pipeline.pipeline.analyze", side_effect=lambda url: _no_website_result()):
+            await execute_run(run.id, db)
+
+    db.refresh(run)
+    assert run.status == RunStatus.completed.value
+    assert run.cost_usd is not None
+    expected_cost = run.total_leads * APIFY_FACEBOOK_PAGES_COST_PER_LEAD
+    assert abs(run.cost_usd - expected_cost) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Cycle 12: execute_run() writes cost_usd for apify_google_maps runs
+# ---------------------------------------------------------------------------
+
+async def test_execute_run_writes_cost_usd_for_apify_google_maps(db):
+    """
+    After an apify_google_maps run completes, run.cost_usd must be set using
+    the Apify Google Maps rate: total_leads * APIFY_GOOGLE_MAPS_COST_PER_LEAD.
+    """
+    from app.config import APIFY_GOOGLE_MAPS_COST_PER_LEAD
+
+    config_yaml = """\
+source: apify_google_maps
+max_results_per_run: 10
+source_config:
+  search_term: plumbers
+  city: Austin
+  state: TX
+"""
+    run = make_run(db, config_yaml)
+    run.source = "apify_google_maps"
+    db.commit()
+
+    with patch("app.lead_pipeline.pipeline.ADAPTER_REGISTRY") as mock_registry:
+        mock_adapter = MagicMock()
+        mock_adapter.fetch = AsyncMock(return_value=[GOOD_BIZ])
+        mock_registry.__getitem__ = MagicMock(return_value=mock_adapter)
+
+        with patch("app.lead_pipeline.pipeline.analyze", side_effect=lambda url: _no_website_result()):
+            await execute_run(run.id, db)
+
+    db.refresh(run)
+    assert run.status == RunStatus.completed.value
+    assert run.cost_usd is not None
+    assert abs(run.cost_usd - (1 * APIFY_GOOGLE_MAPS_COST_PER_LEAD)) < 1e-9

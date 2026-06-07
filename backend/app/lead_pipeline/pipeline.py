@@ -16,6 +16,8 @@ import yaml
 from sqlalchemy.orm import Session
 
 from app.config import (
+    APIFY_FACEBOOK_PAGES_COST_PER_LEAD,
+    APIFY_GOOGLE_MAPS_COST_PER_LEAD,
     DEFAULT_MAX_RESULTS_PER_RUN,
     PLACES_COST_PER_1000_REQUESTS,
     PLACES_RESULTS_PER_REQUEST,
@@ -115,12 +117,16 @@ async def execute_run(run_id: int, db: Session) -> None:
         run.status = RunStatus.completed.value
 
         # ------------------------------------------------------------------
-        # Cost calculation (Google Places only for now)
+        # Cost calculation
         # ------------------------------------------------------------------
         if source == "google_places":
             n_results = len(raw_businesses)
             n_requests = math.ceil(n_results / PLACES_RESULTS_PER_REQUEST) if n_results > 0 else 0
             run.cost_usd = n_requests * (PLACES_COST_PER_1000_REQUESTS / 1000)
+        elif source == "apify_google_maps":
+            run.cost_usd = len(leads) * APIFY_GOOGLE_MAPS_COST_PER_LEAD
+        elif source == "apify_facebook_pages":
+            run.cost_usd = run.total_leads * APIFY_FACEBOOK_PAGES_COST_PER_LEAD
 
         db.commit()
 

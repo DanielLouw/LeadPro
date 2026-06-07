@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     GOOGLE_PLACES_API_KEY: str = ""
     PAGESPEED_API_KEY: str = ""
     DATABASE_URL: str = "sqlite:///./leadpro.db"
+    APIFY_API_KEY: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -23,3 +24,14 @@ PLACES_RESULTS_PER_REQUEST: int = 20
 
 # Default cap on total raw results fetched per run (reduced for Apify cost control).
 DEFAULT_MAX_RESULTS_PER_RUN: int = 10
+
+# ---------------------------------------------------------------------------
+# Apify constants (issues #0019, #0020)
+# ---------------------------------------------------------------------------
+APIFY_API_BASE_URL: str = "https://api.apify.com/v2"
+
+# Apify Google Maps Scraper: free-plan rate per lead result.
+APIFY_GOOGLE_MAPS_COST_PER_LEAD: float = 0.004
+
+# Apify Facebook Pages Scraper: free-plan rate per lead result.
+APIFY_FACEBOOK_PAGES_COST_PER_LEAD: float = 0.010
