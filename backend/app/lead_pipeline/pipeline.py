@@ -9,13 +9,19 @@ Only businesses with at least one hard gap signal are saved as Leads.
 
 import asyncio
 import logging
+import math
 from typing import Callable
 
 import yaml
 from sqlalchemy.orm import Session
 
-from app.config import DEFAULT_MAX_RESULTS_PER_RUN
+from app.config import (
+    DEFAULT_MAX_RESULTS_PER_RUN,
+    PLACES_COST_PER_1000_REQUESTS,
+    PLACES_RESULTS_PER_REQUEST,
+)
 from app.gap_analyzer.analyzer import analyze
+from app.lead_pipeline.adapters import ADAPTER_REGISTRY
 from app.models import GapSignal, Lead, Note, Run, RunStatus
 from app.places_scraper.scraper import RawBusiness, scrape_queries
 
@@ -32,15 +38,37 @@ async def execute_run(run_id: int, db: Session) -> None:
         raise ValueError(f"Run {run_id} not found")
 
     config = yaml.safe_load(run.config_yaml)
-    queries: list[str] = config.get("queries", [])
+
+    # ------------------------------------------------------------------
+    # Shared config keys
+    # ------------------------------------------------------------------
     max_results: int = config.get("max_results_per_run", DEFAULT_MAX_RESULTS_PER_RUN)
+
+    # ------------------------------------------------------------------
+    # Source resolution
+    # ------------------------------------------------------------------
+    # run.source is the canonical source (set when the Run row is created).
+    # Fall back to 'google_places' for legacy rows that predate the column.
+    source: str = run.source or "google_places"
+    adapter = ADAPTER_REGISTRY[source]
+
+    # source_config block — present in new YAML shape; absent in legacy YAML.
+    source_config: dict = config.get("source_config") or {}
+
+    # Legacy YAML has top-level "queries"; new YAML puts them inside source_config.
+    legacy_queries: list[str] = config.get("queries", [])
 
     run.status = RunStatus.running.value
     run.queries_completed = 0
     db.commit()
 
     try:
-        raw_businesses = await scrape_queries(queries, max_results)
+        raw_businesses = await adapter.fetch(
+            source_config=source_config,
+            max_results=max_results,
+            legacy_queries=legacy_queries,
+            _scrape_fn=scrape_queries,
+        )
 
         # Update total now that we know how many businesses to analyse
         run = db.get(Run, run_id)
@@ -85,6 +113,15 @@ async def execute_run(run_id: int, db: Session) -> None:
         run.total_leads = len(leads)
         run.queries_completed = run.queries_total
         run.status = RunStatus.completed.value
+
+        # ------------------------------------------------------------------
+        # Cost calculation (Google Places only for now)
+        # ------------------------------------------------------------------
+        if source == "google_places":
+            n_results = len(raw_businesses)
+            n_requests = math.ceil(n_results / PLACES_RESULTS_PER_REQUEST) if n_results > 0 else 0
+            run.cost_usd = n_requests * (PLACES_COST_PER_1000_REQUESTS / 1000)
+
         db.commit()
 
     except Exception as exc:
