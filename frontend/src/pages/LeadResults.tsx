@@ -248,7 +248,7 @@ export default function LeadResults() {
           .then((data: Run | null) => {
             if (!data) return
             setApifyStatus(data.apify_status ?? null)
-            if (data.apify_status !== 'running') {
+            if (data.status !== 'running') {
               if (progressIntervalRef.current) {
                 clearInterval(progressIntervalRef.current)
                 progressIntervalRef.current = null

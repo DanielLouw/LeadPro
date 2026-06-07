@@ -70,6 +70,8 @@ async def execute_run(run_id: int, db: Session) -> None:
             max_results=max_results,
             legacy_queries=legacy_queries,
             _scrape_fn=scrape_queries,
+            db=db,
+            run_id=run_id,
         )
 
         # Update total now that we know how many businesses to analyse
@@ -124,7 +126,7 @@ async def execute_run(run_id: int, db: Session) -> None:
             n_requests = math.ceil(n_results / PLACES_RESULTS_PER_REQUEST) if n_results > 0 else 0
             run.cost_usd = n_requests * (PLACES_COST_PER_1000_REQUESTS / 1000)
         elif source == "apify_google_maps":
-            run.cost_usd = len(leads) * APIFY_GOOGLE_MAPS_COST_PER_LEAD
+            run.cost_usd = len(raw_businesses) * APIFY_GOOGLE_MAPS_COST_PER_LEAD
         elif source == "apify_facebook_pages":
             run.cost_usd = run.total_leads * APIFY_FACEBOOK_PAGES_COST_PER_LEAD
 

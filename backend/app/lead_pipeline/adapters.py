@@ -69,6 +69,7 @@ class GooglePlacesAdapter:
         *,
         legacy_queries: list[str] | None = None,
         _scrape_fn: Callable[..., Awaitable[list[RawBusiness]]] | None = None,
+        **_kwargs: Any,
     ) -> list[RawBusiness]:
         scrape = _scrape_fn if _scrape_fn is not None else _places_scrape_queries
         queries: list[str] = source_config.get("queries") or legacy_queries or []
@@ -111,6 +112,7 @@ class ApifyGoogleMapsAdapter:
         _poll_interval: float = _DEFAULT_POLL_INTERVAL,
         db=None,
         run_id: int | None = None,
+        **_kwargs: Any,
     ) -> list[RawBusiness]:
         if not settings.APIFY_API_KEY:
             raise ConfigurationError(

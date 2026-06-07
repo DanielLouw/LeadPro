@@ -193,10 +193,11 @@ export default function ConfigBuilder() {
   }
 
   function buildApifyFacebookPagesYaml(): string {
+    const query = [fbKeyword, fbLocation].filter(Boolean).join(' ')
     return yaml.dump({
       source: 'apify_facebook_pages',
       max_results_per_run: maxResults,
-      source_config: { query: fbKeyword },
+      source_config: { query },
     })
   }
 
