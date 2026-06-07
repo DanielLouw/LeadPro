@@ -8,12 +8,20 @@ Adding a new source means:
 
 import asyncio
 import logging
+import math
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
 
-from app.config import APIFY_API_BASE_URL, settings
+from app.config import (
+    APIFY_API_BASE_URL,
+    APIFY_FACEBOOK_PAGES_COST_PER_LEAD,
+    APIFY_GOOGLE_MAPS_COST_PER_LEAD,
+    PLACES_COST_PER_1000_REQUESTS,
+    PLACES_RESULTS_PER_REQUEST,
+    settings,
+)
 from app.models import Run
 from app.places_scraper.scraper import RawBusiness, scrape_queries as _places_scrape_queries
 
@@ -74,6 +82,9 @@ class GooglePlacesAdapter:
         scrape = _scrape_fn if _scrape_fn is not None else _places_scrape_queries
         queries: list[str] = source_config.get("queries") or legacy_queries or []
         return await scrape(queries, max_results)
+
+    def cost(self, n_scraped: int) -> float:
+        return math.ceil(n_scraped / PLACES_RESULTS_PER_REQUEST) * (PLACES_COST_PER_1000_REQUESTS / 1000)
 
 
 class ApifyGoogleMapsAdapter:
@@ -136,7 +147,9 @@ class ApifyGoogleMapsAdapter:
             "maxCrawledPlacesPerSearch": max_results,
         }
 
-        run_info = client.actor("compass/crawler-google-places").start(run_input=actor_input)
+        run_info = await asyncio.to_thread(
+            lambda: client.actor("compass/crawler-google-places").start(run_input=actor_input)
+        )
         apify_run_id: str = run_info["id"]
         dataset_id: str = run_info["defaultDatasetId"]
 
@@ -148,7 +161,7 @@ class ApifyGoogleMapsAdapter:
             if _poll_interval > 0:
                 await asyncio.sleep(_poll_interval)
 
-            run_data = client.run(apify_run_id).get()
+            run_data = await asyncio.to_thread(client.run(apify_run_id).get)
             status = run_data.get("status", "")
 
             if status == "RUNNING" and not seen_running:
@@ -165,7 +178,7 @@ class ApifyGoogleMapsAdapter:
 
         self._update_db(db, run_id, apify_status=_STATUS_DOWNLOADING)
 
-        items_response = client.dataset(dataset_id).list_items()
+        items_response = await asyncio.to_thread(client.dataset(dataset_id).list_items)
         raw_items: list[dict] = items_response.items
 
         results: list[RawBusiness] = []
@@ -191,6 +204,9 @@ class ApifyGoogleMapsAdapter:
                 logger.warning("Failed to map Apify item to RawBusiness — skipping: %r", item)
 
         return results[:max_results]
+
+    def cost(self, n_scraped: int) -> float:
+        return n_scraped * APIFY_GOOGLE_MAPS_COST_PER_LEAD
 
     def _update_db(self, db, run_id: int | None, **fields) -> None:
         """Write ``fields`` to the Run row. Silently no-ops if db/run_id absent."""
@@ -305,6 +321,9 @@ class ApifyFacebookPagesAdapter:
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             return await _run(client)
+
+    def cost(self, n_scraped: int) -> float:
+        return n_scraped * APIFY_FACEBOOK_PAGES_COST_PER_LEAD
 
 
 class _NotImplementedAdapter:

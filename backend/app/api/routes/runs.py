@@ -1,6 +1,5 @@
 import csv
 import io
-import math
 from datetime import date
 
 import yaml
@@ -9,10 +8,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
-from app.budget import get_monthly_spend
+from app.budget import estimate_run_cost as _estimate_cost, get_monthly_spend
 from app.config import (
     DEFAULT_MAX_RESULTS_PER_RUN,
-    PLACES_COST_PER_1000_REQUESTS,
     PLACES_RESULTS_PER_REQUEST,
 )
 from app.database import get_db
@@ -92,7 +90,7 @@ def get_monthly_spend_summary(db: Session = Depends(get_db)) -> MonthlySpendResp
 
 
 @router.post("/estimate", response_model=RunEstimateResponse)
-def estimate_run_cost(body: CreateRunRequest) -> RunEstimateResponse:
+def get_run_estimate(body: CreateRunRequest) -> RunEstimateResponse:
     """Return a cost estimate for a run without executing it."""
     try:
         config = yaml.safe_load(body.config_yaml)
@@ -102,20 +100,21 @@ def estimate_run_cost(body: CreateRunRequest) -> RunEstimateResponse:
     if not isinstance(config, dict):
         raise HTTPException(status_code=400, detail="Config must be a YAML mapping")
 
-    queries = config.get("queries", [])
-    if not isinstance(queries, list) or not queries:
-        raise HTTPException(status_code=400, detail="Config must include at least one query")
-
+    source: str = config.get("source", "google_places")
     max_results: int = config.get("max_results_per_run", DEFAULT_MAX_RESULTS_PER_RUN)
-    query_count = len(queries)
 
-    # Upper bound: each query can yield at most PLACES_RESULTS_PER_REQUEST results
-    # (a single page). Capped by max_results_per_run.
-    estimated_results = min(query_count * PLACES_RESULTS_PER_REQUEST, max_results)
+    if source == "google_places":
+        queries = (config.get("source_config") or {}).get("queries") or config.get("queries", [])
+        if not isinstance(queries, list) or not queries:
+            raise HTTPException(status_code=400, detail="Config must include at least one query")
+        query_count = len(queries)
+        # Each query yields at most one page of results, capped by max_results_per_run.
+        estimated_results = min(query_count * PLACES_RESULTS_PER_REQUEST, max_results)
+    else:
+        query_count = 1
+        estimated_results = max_results
 
-    # Requests needed = one per page; each page delivers PLACES_RESULTS_PER_REQUEST results
-    requests_needed = math.ceil(estimated_results / PLACES_RESULTS_PER_REQUEST)
-    estimated_cost_usd = (requests_needed / 1000) * PLACES_COST_PER_1000_REQUESTS
+    estimated_cost_usd = _estimate_cost(source, estimated_results)
 
     return RunEstimateResponse(
         query_count=query_count,

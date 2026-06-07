@@ -103,6 +103,7 @@ source_config:
     with patch("app.lead_pipeline.pipeline.ADAPTER_REGISTRY") as mock_registry:
         mock_adapter = MagicMock()
         mock_adapter.fetch = mock_fetch
+        mock_adapter.cost.return_value = 0.0
         mock_registry.__getitem__ = MagicMock(return_value=mock_adapter)
 
         with patch("app.lead_pipeline.pipeline.analyze", side_effect=lambda url: _no_website_result()):
@@ -140,6 +141,7 @@ source_config:
     with patch("app.lead_pipeline.pipeline.ADAPTER_REGISTRY") as mock_registry:
         mock_adapter = MagicMock()
         mock_adapter.fetch = mock_fetch
+        mock_adapter.cost.return_value = 0.0
         mock_registry.__getitem__ = MagicMock(return_value=mock_adapter)
 
         with patch("app.lead_pipeline.pipeline.analyze", side_effect=lambda url: _no_website_result()):
@@ -267,6 +269,7 @@ source_config:
     with patch("app.lead_pipeline.pipeline.ADAPTER_REGISTRY") as mock_registry:
         mock_adapter = MagicMock()
         mock_adapter.fetch = AsyncMock(return_value=[fb_biz])
+        mock_adapter.cost.return_value = APIFY_FACEBOOK_PAGES_COST_PER_LEAD
         mock_registry.__getitem__ = MagicMock(return_value=mock_adapter)
 
         with patch("app.lead_pipeline.pipeline.analyze", side_effect=lambda url: _no_website_result()):
@@ -275,7 +278,7 @@ source_config:
     db.refresh(run)
     assert run.status == RunStatus.completed.value
     assert run.cost_usd is not None
-    expected_cost = run.total_leads * APIFY_FACEBOOK_PAGES_COST_PER_LEAD
+    expected_cost = 1 * APIFY_FACEBOOK_PAGES_COST_PER_LEAD
     assert abs(run.cost_usd - expected_cost) < 1e-9
 
 
@@ -305,6 +308,7 @@ source_config:
     with patch("app.lead_pipeline.pipeline.ADAPTER_REGISTRY") as mock_registry:
         mock_adapter = MagicMock()
         mock_adapter.fetch = AsyncMock(return_value=[GOOD_BIZ])
+        mock_adapter.cost.return_value = APIFY_GOOGLE_MAPS_COST_PER_LEAD
         mock_registry.__getitem__ = MagicMock(return_value=mock_adapter)
 
         with patch("app.lead_pipeline.pipeline.analyze", side_effect=lambda url: _no_website_result()):

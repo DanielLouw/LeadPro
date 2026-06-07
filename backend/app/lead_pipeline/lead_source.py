@@ -43,3 +43,7 @@ class LeadSource(Protocol):
             ``source_config`` contains no ``queries`` key.
         """
         ...
+
+    def cost(self, n_scraped: int) -> float:
+        """Return the estimated USD cost for scraping ``n_scraped`` records."""
+        ...
