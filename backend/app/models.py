@@ -142,3 +142,6 @@ class Settings(Base):
     apify_monthly_budget_usd: Mapped[float] = mapped_column(
         Float, nullable=False, default=5.0, server_default="5.0"
     )
+    apify_api_key: Mapped[str] = mapped_column(
+        String(512), nullable=False, default="", server_default=""
+    )

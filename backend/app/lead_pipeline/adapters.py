@@ -120,12 +120,14 @@ class ApifyGoogleMapsAdapter:
         *,
         legacy_queries: list[str] | None = None,
         _apify_client=None,
+        _apify_api_key: str | None = None,
         _poll_interval: float = _DEFAULT_POLL_INTERVAL,
         db=None,
         run_id: int | None = None,
         **_kwargs: Any,
     ) -> list[RawBusiness]:
-        if not settings.APIFY_API_KEY:
+        api_key = _apify_api_key or settings.APIFY_API_KEY
+        if not api_key:
             raise ConfigurationError(
                 "APIFY_API_KEY is not configured. "
                 "Set the APIFY_API_KEY environment variable before running an Apify-sourced run."
@@ -133,7 +135,7 @@ class ApifyGoogleMapsAdapter:
 
         if _apify_client is None:
             from apify_client import ApifyClient
-            client = ApifyClient(settings.APIFY_API_KEY)
+            client = ApifyClient(api_key)
         else:
             client = _apify_client
 
@@ -252,16 +254,18 @@ class ApifyFacebookPagesAdapter:
         *,
         legacy_queries: list[str] | None = None,
         _http_client: Any | None = None,
+        _apify_api_key: str | None = None,
         _poll_interval: float = _DEFAULT_POLL_INTERVAL,
         **_kwargs: Any,
     ) -> list[RawBusiness]:
+        api_key = _apify_api_key or settings.APIFY_API_KEY
         query: str = source_config.get("query", "")
 
         async def _run(client: httpx.AsyncClient) -> list[RawBusiness]:
             run_url = f"{APIFY_API_BASE_URL}/acts/{_FACEBOOK_PAGES_ACTOR_ID}/runs"
             post_resp = await client.post(
                 run_url,
-                params={"token": settings.APIFY_API_KEY},
+                params={"token": api_key},
                 json={"queries": [query], "maxResults": max_results},
             )
             post_resp.raise_for_status()
@@ -273,7 +277,7 @@ class ApifyFacebookPagesAdapter:
             while True:
                 status_resp = await client.get(
                     status_url,
-                    params={"token": settings.APIFY_API_KEY},
+                    params={"token": api_key},
                 )
                 status_resp.raise_for_status()
                 status = status_resp.json()["data"]["status"]
@@ -288,7 +292,7 @@ class ApifyFacebookPagesAdapter:
             dataset_url = f"{APIFY_API_BASE_URL}/datasets/{dataset_id}/items"
             dataset_resp = await client.get(
                 dataset_url,
-                params={"token": settings.APIFY_API_KEY},
+                params={"token": api_key},
             )
             dataset_resp.raise_for_status()
             items: list[dict] = dataset_resp.json()

@@ -337,4 +337,31 @@ async def test_fetch_raises_configuration_error_when_api_key_empty_string():
 def test_adapter_registry_contains_apify_google_maps():
     """The adapter registry must map 'apify_google_maps' to an ApifyGoogleMapsAdapter."""
     assert "apify_google_maps" in ADAPTER_REGISTRY
+
+
+# ---------------------------------------------------------------------------
+# Cycle 9: _apify_api_key kwarg takes precedence over settings.APIFY_API_KEY
+# ---------------------------------------------------------------------------
+
+async def test_fetch_uses_injected_api_key_over_settings():
+    """
+    When _apify_api_key is passed, fetch() uses it and does not raise
+    ConfigurationError even when settings.APIFY_API_KEY is empty.
+    """
+    mock_client = make_apify_client()
+    adapter = ApifyGoogleMapsAdapter()
+    source_config = {"search_term": "plumbers", "city": "Austin", "state": "TX"}
+
+    # settings.APIFY_API_KEY is empty — would normally raise ConfigurationError
+    with patch("app.lead_pipeline.adapters.settings") as mock_settings:
+        mock_settings.APIFY_API_KEY = ""
+        results = await adapter.fetch(
+            source_config=source_config,
+            max_results=10,
+            _apify_client=mock_client,
+            _apify_api_key="injected_key",
+            _poll_interval=0,
+        )
+
+    assert len(results) == 1  # mock_client returns one default item
     assert isinstance(ADAPTER_REGISTRY["apify_google_maps"], ApifyGoogleMapsAdapter)
