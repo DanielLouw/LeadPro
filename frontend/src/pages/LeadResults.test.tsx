@@ -797,7 +797,7 @@ describe('LeadResults — skeleton loader while leads are loading', () => {
       })
     })
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     // Wait until run is loaded (selector appears), then check for skeleton
     await waitFor(() =>
@@ -817,7 +817,7 @@ describe('LeadResults — skeleton loader while leads are loading', () => {
   it('replaces skeleton with real rows once leads arrive', async () => {
     mockFetch(mockRun, mockLeads)
 
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('table', { name: /lead results/i })).toBeInTheDocument()
@@ -852,7 +852,7 @@ describe('LeadResults — Export CSV button disabled while exporting', () => {
     globalThis.URL.revokeObjectURL = vi.fn()
 
     const user = userEvent.setup()
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument()
@@ -905,7 +905,7 @@ describe('LeadResults — toast notification on run submitted', () => {
     })
 
     const user = userEvent.setup()
-    render(<LeadResults />)
+    renderLeadResults()
 
     await waitFor(() =>
       expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
@@ -947,7 +947,7 @@ describe('LeadResults — detail panel toast on status saved', () => {
     })
 
     const user = userEvent.setup()
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -979,7 +979,7 @@ describe('LeadResults — detail panel toast on notes saved', () => {
     })
 
     const user = userEvent.setup()
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
     await user.click(screen.getByText('Alpha Plumber'))
 
@@ -1021,7 +1021,7 @@ describe('LeadResults — multiple toasts can queue', () => {
     })
 
     const user = userEvent.setup()
-    render(<LeadResults />)
+    renderLeadResults()
     await waitFor(() => expect(screen.getByText('Alpha Plumber')).toBeInTheDocument())
 
     // Open detail panel and change status → first toast
@@ -1328,5 +1328,102 @@ describe('LeadResults - auto-selects run from router state', () => {
 
     const select = screen.getByRole('combobox', { name: /select run/i }) as HTMLSelectElement
     expect(select.value).toBe('1')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Issue #0023: Apify status display
+// ---------------------------------------------------------------------------
+
+describe('LeadResults — Apify status display', () => {
+  const apifyRunning = {
+    id: 3,
+    status: 'running',
+    total_leads: 0,
+    config_yaml: 'source: apify_google_maps\n',
+    error_message: null,
+    apify_run_id: 'abc123',
+    apify_status: 'running',
+  }
+
+  it('shows apify_status string for a run with apify_run_id set', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/leads')) {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      // Single run status fetch
+      if (url.match(/\/runs\/\d+$/) && !url.includes('/progress')) {
+        return new Response(JSON.stringify(apifyRunning), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([apifyRunning]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+
+    renderLeadResults()
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
+    )
+
+    // Should show the apify_status value
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: /apify status/i })).toBeInTheDocument()
+    )
+    expect(screen.getByRole('status', { name: /apify status/i })).toHaveTextContent(/running/i)
+  })
+
+  it('does not show queries progress bar for an Apify run (uses apify_status instead)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/leads')) {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.match(/\/runs\/\d+$/) && !url.includes('/progress')) {
+        return new Response(JSON.stringify(apifyRunning), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([apifyRunning]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+
+    renderLeadResults()
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
+    )
+
+    // Should NOT show the old "queries X / Y" progress bar
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: /apify status/i })).toBeInTheDocument()
+    )
+    expect(screen.queryByText(/queries:/i)).not.toBeInTheDocument()
+  })
+
+  it('reloads leads when apify run transitions from running to completed', async () => {
+    let callCount = 0
+    const completedRun = { ...apifyRunning, status: 'completed', apify_status: 'succeeded' }
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/leads/run/')) {
+        callCount++
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.match(/\/runs\/\d+$/) && !url.includes('/progress')) {
+        // First call returns running, second returns completed
+        const run = callCount === 0 ? apifyRunning : completedRun
+        return new Response(JSON.stringify(run), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify([apifyRunning]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+
+    renderLeadResults()
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /select run/i })).toBeInTheDocument()
+    )
+
+    // After run transitions, leads should be reloaded (callCount > 1)
+    await waitFor(() => {
+      expect(callCount).toBeGreaterThan(1)
+    }, { timeout: 5000 })
   })
 })

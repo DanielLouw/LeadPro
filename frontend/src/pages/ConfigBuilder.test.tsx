@@ -251,3 +251,264 @@ describe('ConfigBuilder - Run button fetches estimate', () => {
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Issue #0023: Source selector
+// ---------------------------------------------------------------------------
+
+describe('ConfigBuilder — source selector', () => {
+  it('renders a Lead Source dropdown with all three options', () => {
+    renderConfigBuilder()
+    const select = screen.getByRole('combobox', { name: /lead source/i })
+    expect(select).toBeInTheDocument()
+    const options = Array.from((select as HTMLSelectElement).options).map(o => o.text)
+    expect(options).toContain('Google Places API')
+    expect(options).toContain('Apify — Google Maps Scraper')
+    expect(options).toContain('Apify — Facebook Pages Scraper')
+  })
+
+  it('defaults to Google Places API', () => {
+    renderConfigBuilder()
+    const select = screen.getByRole('combobox', { name: /lead source/i }) as HTMLSelectElement
+    expect(select.value).toBe('google_places')
+  })
+
+  it('switching to Apify Google Maps shows search term and state/city fields', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+    const select = screen.getByRole('combobox', { name: /lead source/i })
+    await user.selectOptions(select, 'apify_google_maps')
+    expect(screen.getByRole('textbox', { name: /search term/i })).toBeInTheDocument()
+    // The Google Places business type section should be gone
+    expect(screen.queryByText('Home Services')).not.toBeInTheDocument()
+  })
+
+  it('switching to Apify Facebook Pages shows keyword and location fields', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+    const select = screen.getByRole('combobox', { name: /lead source/i })
+    await user.selectOptions(select, 'apify_facebook_pages')
+    expect(screen.getByRole('textbox', { name: /keyword/i })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /location/i })).toBeInTheDocument()
+    expect(screen.queryByText('Home Services')).not.toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Issue #0023: Business type chip grid
+// ---------------------------------------------------------------------------
+
+describe('ConfigBuilder — business type chip grid', () => {
+  it('renders business types as chips rather than checkboxes', () => {
+    renderConfigBuilder()
+    // Chips use role="checkbox" + aria-checked for accessibility, same as before
+    const plumbersChip = screen.getByRole('checkbox', { name: /plumbers/i })
+    expect(plumbersChip).toBeInTheDocument()
+    // But it should NOT be an <input type="checkbox"> element
+    expect(plumbersChip.tagName.toLowerCase()).not.toBe('input')
+  })
+
+  it('selected chip is visually distinct — aria-checked true when selected', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+    const chip = screen.getByRole('checkbox', { name: /plumbers/i })
+    expect(chip).toHaveAttribute('aria-checked', 'false')
+    await user.click(chip)
+    expect(chip).toHaveAttribute('aria-checked', 'true')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Issue #0023: Config YAML shape
+// ---------------------------------------------------------------------------
+
+describe('ConfigBuilder — config YAML shape', () => {
+  const mockEstimate = { query_count: 1, estimated_results: 10, estimated_cost_usd: 0.016 }
+
+  beforeEach(() => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/runs/estimate') && init?.method === 'POST') {
+        return new Response(JSON.stringify(mockEstimate), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('/runs/') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({ id: 5, status: 'pending', total_leads: 0, config_yaml: '', error_message: null }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+  })
+
+  afterEach(() => { vi.restoreAllMocks() })
+
+  it('Google Places YAML has nested source_config.queries', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+
+    // Select plumbers + Austin TX
+    await user.click(screen.getByRole('checkbox', { name: /plumbers/i }))
+    await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
+    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    await waitFor(() => {
+      const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls
+      const estimateCall = calls.find((args: unknown[]) => {
+        const url = args[0]
+        return typeof url === 'string' && url.includes('/runs/estimate')
+      })
+      expect(estimateCall).toBeDefined()
+      const body = JSON.parse((estimateCall![1] as RequestInit).body as string)
+      const parsed = body.config_yaml
+      expect(parsed).toContain('source: google_places')
+      expect(parsed).toContain('source_config:')
+      expect(parsed).toContain('queries:')
+    })
+  })
+
+  it('Apify Google Maps YAML has source: apify_google_maps and source_config with search_term/city/state', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /lead source/i }), 'apify_google_maps')
+    await user.type(screen.getByRole('textbox', { name: /search term/i }), 'plumbers')
+    await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
+    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    await waitFor(() => {
+      const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls
+      const estimateCall = calls.find((args: unknown[]) => {
+        const url = args[0]
+        return typeof url === 'string' && url.includes('/runs/estimate')
+      })
+      expect(estimateCall).toBeDefined()
+      const body = JSON.parse((estimateCall![1] as RequestInit).body as string)
+      const yaml = body.config_yaml
+      expect(yaml).toContain('source: apify_google_maps')
+      expect(yaml).toContain('source_config:')
+      expect(yaml).toContain('search_term: plumbers')
+      expect(yaml).toContain('city: Austin')
+      expect(yaml).toContain('state: TX')
+    })
+  })
+
+  it('Apify Facebook Pages YAML has source: apify_facebook_pages and source_config.query', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /lead source/i }), 'apify_facebook_pages')
+    await user.type(screen.getByRole('textbox', { name: /keyword/i }), 'plumbers Austin Texas')
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    await waitFor(() => {
+      const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls
+      const estimateCall = calls.find((args: unknown[]) => {
+        const url = args[0]
+        return typeof url === 'string' && url.includes('/runs/estimate')
+      })
+      expect(estimateCall).toBeDefined()
+      const body = JSON.parse((estimateCall![1] as RequestInit).body as string)
+      const yaml = body.config_yaml
+      expect(yaml).toContain('source: apify_facebook_pages')
+      expect(yaml).toContain('source_config:')
+      expect(yaml).toContain('query: plumbers Austin Texas')
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Issue #0023: Apify confirm step — monthly budget
+// ---------------------------------------------------------------------------
+
+describe('ConfigBuilder — Apify confirm step shows monthly budget', () => {
+  const mockEstimate = { query_count: 1, estimated_results: 10, estimated_cost_usd: 0.04 }
+  const mockSpend = {
+    google_places: { spent_usd: 1.0, budget_usd: 10.0, remaining_usd: 9.0 },
+    apify: { spent_usd: 1.24, budget_usd: 5.0, remaining_usd: 3.76 },
+  }
+
+  beforeEach(() => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/runs/monthly-spend')) {
+        return new Response(JSON.stringify(mockSpend), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('/runs/estimate') && init?.method === 'POST') {
+        return new Response(JSON.stringify(mockEstimate), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+  })
+
+  afterEach(() => { vi.restoreAllMocks() })
+
+  it('shows remaining Apify budget after estimated run cost', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /lead source/i }), 'apify_google_maps')
+    await user.type(screen.getByRole('textbox', { name: /search term/i }), 'plumbers')
+    await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
+    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    // Should show estimated cost and remaining budget info
+    await waitFor(() =>
+      expect(screen.getByText(/\$0\.04/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText(/remaining/i)).toBeInTheDocument()
+  })
+
+  it('shows a budget warning when estimated cost would exceed remaining Apify budget', async () => {
+    const user = userEvent.setup()
+
+    // Override: estimated cost exceeds remaining budget
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/runs/monthly-spend')) {
+        return new Response(JSON.stringify({
+          google_places: { spent_usd: 0, budget_usd: 10.0, remaining_usd: 10.0 },
+          apify: { spent_usd: 4.95, budget_usd: 5.0, remaining_usd: 0.05 },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.includes('/runs/estimate') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ query_count: 1, estimated_results: 50, estimated_cost_usd: 0.20 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+
+    renderConfigBuilder()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /lead source/i }), 'apify_google_maps')
+    await user.type(screen.getByRole('textbox', { name: /search term/i }), 'plumbers')
+    await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
+    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert', { name: /budget/i })).toBeInTheDocument()
+    )
+    // "Confirm & start run" should still be enabled (warning, not block)
+    expect(screen.getByRole('button', { name: /confirm/i })).not.toBeDisabled()
+  })
+})

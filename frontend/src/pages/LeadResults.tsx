@@ -17,6 +17,8 @@ interface Run {
   total_leads: number
   config_yaml: string
   error_message: string | null
+  apify_run_id?: string | null
+  apify_status?: string | null
 }
 
 interface RunEstimate {
@@ -144,9 +146,12 @@ export default function LeadResults() {
   // All signal types ever seen for current run (for checkbox list)
   const [knownSignalTypes, setKnownSignalTypes] = useState<string[]>([])
 
-  // Progress polling
+  // Progress polling (Google Places runs)
   const [progress, setProgress] = useState<RunProgress | null>(null)
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Apify status polling
+  const [apifyStatus, setApifyStatus] = useState<string | null>(null)
 
   // ---------------------------------------------------------------------------
   // Load runs on mount
@@ -220,36 +225,68 @@ export default function LeadResults() {
 
     if (selectedRunId == null) {
       setProgress(null)
+      setApifyStatus(null)
       return
     }
 
     const selectedRun = runs.find(r => r.id === selectedRunId)
     if (!selectedRun || selectedRun.status !== 'running') {
       setProgress(null)
+      setApifyStatus(selectedRun?.apify_run_id ? (selectedRun.apify_status ?? null) : null)
       return
     }
 
-    // Fetch immediately, then poll every 2 seconds
-    const poll = () => {
-      fetch(`/api/runs/${selectedRunId}/progress`)
-        .then(r => r.ok ? r.json() : null)
-        .then((data: RunProgress | null) => {
-          if (!data) return
-          setProgress(data)
-          if (data.status !== 'running') {
-            // Run finished — stop polling and reload leads
-            if (progressIntervalRef.current) {
-              clearInterval(progressIntervalRef.current)
-              progressIntervalRef.current = null
-            }
-            fetchLeads(selectedRunId)
-          }
-        })
-        .catch(() => { /* swallow — non-critical */ })
-    }
+    const isApifyRun = !!selectedRun.apify_run_id
 
-    poll()
-    progressIntervalRef.current = setInterval(poll, 2000)
+    if (isApifyRun) {
+      // Apify run: poll GET /api/runs/{id} for apify_status
+      setApifyStatus(selectedRun.apify_status ?? 'running')
+
+      const poll = () => {
+        fetch(`/api/runs/${selectedRunId}`)
+          .then(r => r.ok ? r.json() : null)
+          .then((data: Run | null) => {
+            if (!data) return
+            setApifyStatus(data.apify_status ?? null)
+            if (data.apify_status !== 'running') {
+              if (progressIntervalRef.current) {
+                clearInterval(progressIntervalRef.current)
+                progressIntervalRef.current = null
+              }
+              // Update the run in the list and reload leads
+              setRuns(prev => prev.map(r => r.id === data.id ? data : r))
+              fetchLeads(selectedRunId)
+            }
+          })
+          .catch(() => { /* swallow — non-critical */ })
+      }
+
+      poll()
+      progressIntervalRef.current = setInterval(poll, 2000)
+    } else {
+      // Google Places run: poll /progress endpoint
+      setApifyStatus(null)
+
+      const poll = () => {
+        fetch(`/api/runs/${selectedRunId}/progress`)
+          .then(r => r.ok ? r.json() : null)
+          .then((data: RunProgress | null) => {
+            if (!data) return
+            setProgress(data)
+            if (data.status !== 'running') {
+              if (progressIntervalRef.current) {
+                clearInterval(progressIntervalRef.current)
+                progressIntervalRef.current = null
+              }
+              fetchLeads(selectedRunId)
+            }
+          })
+          .catch(() => { /* swallow — non-critical */ })
+      }
+
+      poll()
+      progressIntervalRef.current = setInterval(poll, 2000)
+    }
 
     return () => {
       if (progressIntervalRef.current) {
@@ -515,8 +552,27 @@ export default function LeadResults() {
         </section>
       )}
 
-      {/* Progress indicator — only shown while run is executing */}
-      {isRunning && progress && (
+      {/* Apify status indicator — shown when run has apify_run_id */}
+      {selectedRun?.apify_run_id && apifyStatus && (
+        <div
+          role="status"
+          aria-label="Apify status"
+          style={{
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            borderRadius: '6px',
+            padding: '10px 16px',
+            marginBottom: '16px',
+            fontSize: '13px',
+            color: '#1d4ed8',
+          }}
+        >
+          <p>Apify status: {apifyStatus}</p>
+        </div>
+      )}
+
+      {/* Progress indicator — only shown for non-Apify running runs */}
+      {isRunning && progress && !selectedRun?.apify_run_id && (
         <div
           role="status"
           aria-label="Run progress"
