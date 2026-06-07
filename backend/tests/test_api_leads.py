@@ -66,7 +66,7 @@ def _seed_lead(test_db, *, status: str = "new") -> int:
         db.flush()
         lead = Lead(
             run_id=run.id,
-            place_id="place_001",
+            external_id="place_001",
             name="Test Business",
             phone="(512) 555-0001",
             address="1 Main St",

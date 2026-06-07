@@ -67,7 +67,7 @@ def _seed_run_with_signal(test_db, signal_type: str, is_hard: bool = True) -> in
         db.flush()
         lead = Lead(
             run_id=run.id,
-            place_id=f"place_{signal_type}",
+            external_id=f"place_{signal_type}",
             name="Test Business",
             gap_score=10.0,
             status="new",

@@ -72,7 +72,7 @@ async def test_single_query_returns_raw_businesses(httpx_mock: HTTPXMock):
     assert len(results) == 1
     biz = results[0]
     assert isinstance(biz, RawBusiness)
-    assert biz.place_id == PLACE_ID_1
+    assert biz.external_id == PLACE_ID_1
     assert biz.name == "Business 1"
     assert biz.address == "123 Main St, Springfield, IL 62701, USA"
     assert biz.city == "Springfield"
@@ -183,4 +183,39 @@ async def test_deduplication_across_queries(httpx_mock: HTTPXMock):
         results = await scrape_queries(["query one", "query two"])
 
     assert len(results) == 1
-    assert results[0].place_id == PLACE_ID_1
+    assert results[0].external_id == PLACE_ID_1
+
+
+# ---------------------------------------------------------------------------
+# Issue #0017: RawBusiness uses external_id instead of place_id
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_raw_business_has_external_id_field(httpx_mock: HTTPXMock):
+    """RawBusiness.external_id replaces place_id — field name is external_id."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1]),
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response(),
+        )
+
+        results = await scrape_queries(["plumbers in Springfield IL"])
+
+    assert len(results) == 1
+    biz = results[0]
+    assert biz.external_id == PLACE_ID_1
+    assert not hasattr(biz, "place_id"), "place_id field should no longer exist on RawBusiness"
+
+
+def test_default_max_results_is_10():
+    """DEFAULT_MAX_RESULTS_PER_RUN constant must be 10 (changed from 500 in #0017)."""
+    from app.config import DEFAULT_MAX_RESULTS_PER_RUN
+
+    assert DEFAULT_MAX_RESULTS_PER_RUN == 10

@@ -45,7 +45,7 @@ class NoteResponse(BaseModel):
 class LeadResponse(BaseModel):
     id: int
     run_id: int
-    place_id: str
+    external_id: str
     name: str
     phone: str | None
     address: str | None

@@ -121,7 +121,7 @@ def test_post_runs_full_pipeline_mocked(client, test_db):
             run.status = RunStatus.completed.value
             lead = Lead(
                 run_id=run_id,
-                place_id=biz_place_id,
+                external_id=biz_place_id,
                 name=biz_name,
                 phone="(512) 555-9999",
                 address="5 Pine St, Austin, TX 78701, USA",

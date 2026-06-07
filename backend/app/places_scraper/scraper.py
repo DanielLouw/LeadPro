@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from app.config import settings
+from app.config import DEFAULT_MAX_RESULTS_PER_RUN, settings
 
 PLACES_TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 PLACES_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
@@ -16,7 +16,7 @@ PLACES_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
 
 @dataclass
 class RawBusiness:
-    place_id: str
+    external_id: str
     name: str
     address: str | None
     city: str | None
@@ -26,10 +26,10 @@ class RawBusiness:
     maps_url: str | None
 
 
-async def scrape_queries(queries: list[str], max_results: int = 500) -> list[RawBusiness]:
+async def scrape_queries(queries: list[str], max_results: int = DEFAULT_MAX_RESULTS_PER_RUN) -> list[RawBusiness]:
     """Fetch raw business records for a list of search queries."""
     results: list[RawBusiness] = []
-    seen_place_ids: set[str] = set()
+    seen_external_ids: set[str] = set()
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         for query in queries:
@@ -37,8 +37,8 @@ async def scrape_queries(queries: list[str], max_results: int = 500) -> list[Raw
                 break
             businesses = await _fetch_query(client, query, max_results - len(results))
             for biz in businesses:
-                if biz.place_id not in seen_place_ids:
-                    seen_place_ids.add(biz.place_id)
+                if biz.external_id not in seen_external_ids:
+                    seen_external_ids.add(biz.external_id)
                     results.append(biz)
 
     return results
@@ -74,7 +74,7 @@ async def _fetch_query(client: httpx.AsyncClient, query: str, limit: int) -> lis
             city, state = _parse_city_state(place.get("formatted_address", ""))
             results.append(
                 RawBusiness(
-                    place_id=place["place_id"],
+                    external_id=place["place_id"],
                     name=place.get("name", ""),
                     address=place.get("formatted_address"),
                     city=city,

@@ -49,11 +49,24 @@ class Run(Base):
     queries_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     queries_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(
+        String(50),
+        default="google_places",
+        nullable=False,
+        server_default="google_places",
+    )
+    apify_run_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    apify_status: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     leads: Mapped[list["Lead"]] = relationship("Lead", back_populates="run", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint("status IN ('pending', 'running', 'completed', 'failed')", name="runs_status_check"),
+        CheckConstraint(
+            "source IN ('google_places', 'apify_google_maps', 'apify_facebook_pages')",
+            name="runs_source_check",
+        ),
     )
 
 
@@ -62,7 +75,7 @@ class Lead(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     run_id: Mapped[int] = mapped_column(Integer, ForeignKey("runs.id"), nullable=False)
-    place_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -86,7 +99,7 @@ class Lead(Base):
     note: Mapped["Note | None"] = relationship("Note", back_populates="lead", uselist=False, cascade="all, delete-orphan")
 
     __table_args__ = (
-        UniqueConstraint("run_id", "place_id", name="leads_run_place_unique"),
+        UniqueConstraint("run_id", "external_id", name="leads_run_external_unique"),
         CheckConstraint(
             "status IN ('new', 'reviewing', 'contacted', 'pass')",
             name="leads_status_check",
@@ -117,3 +130,15 @@ class Note(Base):
     )
 
     lead: Mapped["Lead"] = relationship("Lead", back_populates="note")
+
+
+class Settings(Base):
+    __tablename__ = "settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    google_places_monthly_budget_usd: Mapped[float] = mapped_column(
+        Float, nullable=False, default=200.0, server_default="200.0"
+    )
+    apify_monthly_budget_usd: Mapped[float] = mapped_column(
+        Float, nullable=False, default=5.0, server_default="5.0"
+    )

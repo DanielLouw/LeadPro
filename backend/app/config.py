@@ -21,5 +21,5 @@ PLACES_COST_PER_1000_REQUESTS: float = 32.0
 # The Places Text Search API returns up to 20 results per page (one request).
 PLACES_RESULTS_PER_REQUEST: int = 20
 
-# Default cap on total raw results fetched per run.
-DEFAULT_MAX_RESULTS_PER_RUN: int = 500
+# Default cap on total raw results fetched per run (reduced for Apify cost control).
+DEFAULT_MAX_RESULTS_PER_RUN: int = 10

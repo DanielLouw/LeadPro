@@ -14,6 +14,7 @@ from typing import Callable
 import yaml
 from sqlalchemy.orm import Session
 
+from app.config import DEFAULT_MAX_RESULTS_PER_RUN
 from app.gap_analyzer.analyzer import analyze
 from app.models import GapSignal, Lead, Note, Run, RunStatus
 from app.places_scraper.scraper import RawBusiness, scrape_queries
@@ -32,7 +33,7 @@ async def execute_run(run_id: int, db: Session) -> None:
 
     config = yaml.safe_load(run.config_yaml)
     queries: list[str] = config.get("queries", [])
-    max_results: int = config.get("max_results_per_run", 500)
+    max_results: int = config.get("max_results_per_run", DEFAULT_MAX_RESULTS_PER_RUN)
 
     run.status = RunStatus.running.value
     run.queries_completed = 0
@@ -54,7 +55,7 @@ async def execute_run(run_id: int, db: Session) -> None:
         for lead_data in leads:
             lead = Lead(
                 run_id=run_id,
-                place_id=lead_data["place_id"],
+                external_id=lead_data["external_id"],
                 name=lead_data["name"],
                 phone=lead_data["phone"],
                 address=lead_data["address"],
@@ -128,7 +129,7 @@ async def _analyze_businesses(
         if not result.qualifies_as_lead():
             return None
         return {
-            "place_id": biz.place_id,
+            "external_id": biz.external_id,
             "name": biz.name,
             "phone": biz.phone,
             "address": biz.address,
