@@ -303,6 +303,13 @@ class ApifyFacebookPagesAdapter:
             for item in items:
                 if len(results) >= max_results:
                     break
+                if "error" in item:
+                    logger.warning(
+                        "Apify Facebook Pages actor returned an error item: %s — %s",
+                        item.get("error"),
+                        item.get("errorDescription"),
+                    )
+                    continue
                 phone: str | None = item.get("phone") or None
                 website_url: str | None = item.get("website") or None
                 if phone is None and website_url is None:
