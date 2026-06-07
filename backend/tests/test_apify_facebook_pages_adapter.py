@@ -289,37 +289,3 @@ async def test_fetch_respects_max_results_cap():
     )
 
     assert len(results) == 5
-
-
-# ---------------------------------------------------------------------------
-# Cycle 8: _apify_api_key kwarg is forwarded in the POST request token
-# ---------------------------------------------------------------------------
-
-async def test_fetch_uses_injected_api_key_in_request():
-    """
-    When _apify_api_key is passed, fetch() must include it as the token
-    query parameter in the POST request (not the value from settings).
-    """
-    from unittest.mock import patch
-
-    client = _make_http_client(
-        run_response=RUN_STARTED,
-        status_responses=[RUN_SUCCEEDED],
-        dataset_items=[FACEBOOK_PAGE_ITEM],
-    )
-
-    adapter = ApifyFacebookPagesAdapter()
-
-    with patch("app.lead_pipeline.adapters.settings") as mock_settings:
-        mock_settings.APIFY_API_KEY = "env_key_should_not_be_used"
-        await adapter.fetch(
-            source_config={"query": "plumbers Austin Texas"},
-            max_results=10,
-            _http_client=client,
-            _apify_api_key="injected_key",
-            _poll_interval=0,
-        )
-
-    # The POST call should have used the injected key, not the env key
-    post_call_kwargs = client.post.call_args
-    assert post_call_kwargs.kwargs["params"]["token"] == "injected_key"

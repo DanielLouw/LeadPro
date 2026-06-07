@@ -41,9 +41,8 @@ def on_startup() -> None:
         if count == 0:
             conn.execute(
                 text(
-                    "INSERT INTO settings "
-                    "(google_places_monthly_budget_usd, apify_monthly_budget_usd, apify_api_key) "
-                    "VALUES (200.0, 5.0, '')"
+                    "INSERT INTO settings (google_places_monthly_budget_usd, apify_monthly_budget_usd) "
+                    "VALUES (200.0, 5.0)"
                 )
             )
             conn.commit()

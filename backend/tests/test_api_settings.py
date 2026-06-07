@@ -138,27 +138,3 @@ def test_patch_settings_rejects_negative_apify(client):
     """PATCH /settings rejects negative apify budget."""
     resp = client.patch("/settings", json={"apify_monthly_budget_usd": -5.0})
     assert resp.status_code == 422
-
-
-# ---------------------------------------------------------------------------
-# apify_api_key — Cycles added for Apify API key support
-# ---------------------------------------------------------------------------
-
-def test_get_settings_returns_apify_api_key(client):
-    """GET /settings response includes apify_api_key (empty string by default)."""
-    resp = client.get("/settings")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "apify_api_key" in data
-    assert data["apify_api_key"] == ""
-
-
-def test_patch_settings_saves_apify_api_key(client):
-    """PATCH /settings with apify_api_key persists and returns the new value."""
-    resp = client.patch("/settings", json={"apify_api_key": "apify_abc123"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["apify_api_key"] == "apify_abc123"
-    # Re-fetch to confirm persistence
-    resp2 = client.get("/settings")
-    assert resp2.json()["apify_api_key"] == "apify_abc123"

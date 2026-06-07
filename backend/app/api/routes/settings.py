@@ -18,7 +18,6 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 class SettingsResponse(BaseModel):
     google_places_monthly_budget_usd: float
     apify_monthly_budget_usd: float
-    apify_api_key: str
 
     model_config = {"from_attributes": True}
 
@@ -26,7 +25,6 @@ class SettingsResponse(BaseModel):
 class SettingsPatchRequest(BaseModel):
     google_places_monthly_budget_usd: float | None = None
     apify_monthly_budget_usd: float | None = None
-    apify_api_key: str | None = None
 
     @field_validator("google_places_monthly_budget_usd", "apify_monthly_budget_usd", mode="before")
     @classmethod
@@ -57,8 +55,6 @@ def patch_settings(body: SettingsPatchRequest, db: Session = Depends(get_db)) ->
         row.google_places_monthly_budget_usd = body.google_places_monthly_budget_usd
     if body.apify_monthly_budget_usd is not None:
         row.apify_monthly_budget_usd = body.apify_monthly_budget_usd
-    if body.apify_api_key is not None:
-        row.apify_api_key = body.apify_api_key
     db.commit()
     db.refresh(row)
     return row

@@ -14,10 +14,10 @@ from typing import Callable
 import yaml
 from sqlalchemy.orm import Session
 
-from app.config import DEFAULT_MAX_RESULTS_PER_RUN, settings as _env_settings
+from app.config import DEFAULT_MAX_RESULTS_PER_RUN
 from app.gap_analyzer.analyzer import analyze
 from app.lead_pipeline.adapters import ADAPTER_REGISTRY
-from app.models import GapSignal, Lead, Note, Run, RunStatus, Settings
+from app.models import GapSignal, Lead, Note, Run, RunStatus
 from app.places_scraper.scraper import RawBusiness, scrape_queries
 
 logger = logging.getLogger(__name__)
@@ -47,12 +47,6 @@ async def execute_run(run_id: int, db: Session) -> None:
     source: str = run.source or "google_places"
     adapter = ADAPTER_REGISTRY[source]
 
-    # Resolve Apify API key: DB setting takes precedence over env variable.
-    settings_row = db.query(Settings).first()
-    apify_api_key: str = (
-        (settings_row.apify_api_key if settings_row else "") or _env_settings.APIFY_API_KEY
-    )
-
     # source_config block — present in new YAML shape; absent in legacy YAML.
     source_config: dict = config.get("source_config") or {}
 
@@ -69,7 +63,6 @@ async def execute_run(run_id: int, db: Session) -> None:
             max_results=max_results,
             legacy_queries=legacy_queries,
             _scrape_fn=scrape_queries,
-            _apify_api_key=apify_api_key,
             db=db,
             run_id=run_id,
         )
