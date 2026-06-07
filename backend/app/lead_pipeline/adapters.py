@@ -255,6 +255,12 @@ class ApifyFacebookPagesAdapter:
         _poll_interval: float = _DEFAULT_POLL_INTERVAL,
         **_kwargs: Any,
     ) -> list[RawBusiness]:
+        if not settings.APIFY_API_KEY:
+            raise ConfigurationError(
+                "APIFY_API_KEY is not configured. "
+                "Set the APIFY_API_KEY environment variable before running an Apify-sourced run."
+            )
+
         query: str = source_config.get("query", "")
 
         async def _run(client: httpx.AsyncClient) -> list[RawBusiness]:
