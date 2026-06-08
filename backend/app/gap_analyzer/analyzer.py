@@ -42,6 +42,9 @@ SOFT_SIGNALS = {
     "no_robots_txt": "No robots.txt found",
     "no_schema_markup": "No schema markup (JSON-LD or microdata) found",
     "no_viewport_tag": "No mobile viewport meta tag",
+    "slow_lcp": "Largest Contentful Paint exceeds 4 seconds (Poor)",
+    "high_cls": "Cumulative Layout Shift exceeds 0.25 (Poor)",
+    "slow_inp": "Interaction to Next Paint exceeds 500ms (Poor)",
 }
 
 # ---------------------------------------------------------------------------
@@ -54,6 +57,9 @@ SIGNAL_SERVICE: dict[str, str] = {
     "no_https": "Website Build",
     "low_pagespeed": "Website Modernisation",
     "no_viewport_tag": "Website Modernisation",
+    "slow_lcp": "Website Modernisation",
+    "high_cls": "Website Modernisation",
+    "slow_inp": "Website Modernisation",
     "missing_meta_title": "SEO Package",
     "missing_meta_description": "SEO Package",
     "no_sitemap": "SEO Package",
@@ -132,6 +138,31 @@ SIGNAL_SALES_COPY: dict[str, str] = {
         "business blends into plain blue links. An SEO Package adds structured data "
         "that can unlock these higher-visibility result formats."
     ),
+    "slow_lcp": (
+        "The site's Largest Contentful Paint is in Google's 'Poor' range — the main "
+        "content takes more than 4 seconds to appear on mobile, which is long enough "
+        "for most visitors to give up and call a competitor instead. Google also uses "
+        "LCP as a direct ranking signal, so slow load times push the site down in "
+        "search results. A Website Modernisation engagement targets the specific "
+        "bottlenecks — oversized images, render-blocking scripts, slow hosting — that "
+        "are causing this delay."
+    ),
+    "high_cls": (
+        "The site has a high Cumulative Layout Shift score, meaning buttons, text, and "
+        "images jump around the screen while the page loads. This makes the site feel "
+        "broken and causes accidental taps on mobile — a direct hit to conversions. "
+        "Google factors layout stability into rankings, so unstable pages are penalised "
+        "in search. A Website Modernisation fixes the root causes: unspecified image "
+        "dimensions, late-loading ads, and dynamic content inserted without reserving space."
+    ),
+    "slow_inp": (
+        "The site's Interaction to Next Paint is in Google's 'Poor' range — when a "
+        "visitor taps a button or link, the page takes over 500ms to respond, which "
+        "feels sluggish and unresponsive. On mobile, where most local searches happen, "
+        "this friction kills trust before the prospect ever picks up the phone. A "
+        "Website Modernisation identifies the JavaScript and third-party scripts "
+        "blocking the main thread and eliminates the delay."
+    ),
 }
 
 
@@ -173,6 +204,14 @@ class AnalysisResult:
 
     def qualifies_as_lead(self) -> bool:
         return self.has_hard_signal
+
+
+@dataclass
+class PageSpeedResult:
+    performance_score: int
+    lcp_ms: float | None = None
+    cls: float | None = None
+    inp_ms: float | None = None
 
 
 async def analyze(url: str | None) -> AnalysisResult:
@@ -219,17 +258,24 @@ async def analyze(url: str | None) -> AnalysisResult:
         if no_robots:
             signals.append(GapSignalResult("no_robots_txt", False, SOFT_SIGNALS["no_robots_txt"]))
 
-        pagespeed_score = await _fetch_pagespeed(normalized)
-        if pagespeed_score is not None and pagespeed_score < 50:
-            signals.append(
-                GapSignalResult(
-                    "low_pagespeed",
-                    True,
-                    f"{HARD_SIGNALS['low_pagespeed']} (score: {pagespeed_score})",
+        pagespeed = await _fetch_pagespeed(normalized)
+        if pagespeed is not None:
+            if pagespeed.performance_score < 50:
+                signals.append(
+                    GapSignalResult(
+                        "low_pagespeed",
+                        True,
+                        f"{HARD_SIGNALS['low_pagespeed']} (score: {pagespeed.performance_score})",
+                    )
                 )
-            )
+            if pagespeed.lcp_ms is not None and pagespeed.lcp_ms > 4000:
+                signals.append(GapSignalResult("slow_lcp", False, SOFT_SIGNALS["slow_lcp"]))
+            if pagespeed.cls is not None and pagespeed.cls > 0.25:
+                signals.append(GapSignalResult("high_cls", False, SOFT_SIGNALS["high_cls"]))
+            if pagespeed.inp_ms is not None and pagespeed.inp_ms > 500:
+                signals.append(GapSignalResult("slow_inp", False, SOFT_SIGNALS["slow_inp"]))
 
-    score = sum(HARD_SIGNAL_WEIGHT if s.is_hard else SOFT_SIGNAL_WEIGHT for s in signals)
+    score = float(sum(HARD_SIGNAL_WEIGHT if s.is_hard else SOFT_SIGNAL_WEIGHT for s in signals))
     has_hard = any(s.is_hard for s in signals)
 
     return AnalysisResult(gap_signals=signals, gap_score=score, has_hard_signal=has_hard)
@@ -283,7 +329,7 @@ def _analyze_html(html: str) -> list[GapSignalResult]:
     return signals
 
 
-async def _fetch_pagespeed(url: str) -> int | None:
+async def _fetch_pagespeed(url: str) -> PageSpeedResult | None:
     if not settings.PAGESPEED_API_KEY:
         return None
 
@@ -294,7 +340,17 @@ async def _fetch_pagespeed(url: str) -> int | None:
                 params={"url": url, "strategy": "mobile", "key": settings.PAGESPEED_API_KEY},
             )
             data: dict[str, Any] = resp.json()
-            score = data["lighthouseResult"]["categories"]["performance"]["score"]
-            return int(score * 100)
+            lhr = data["lighthouseResult"]
+            score = int(lhr["categories"]["performance"]["score"] * 100)
+            audits = lhr.get("audits", {})
+            lcp = audits.get("largest-contentful-paint", {}).get("numericValue")
+            cls = audits.get("cumulative-layout-shift", {}).get("numericValue")
+            inp = audits.get("interaction-to-next-paint", {}).get("numericValue")
+            return PageSpeedResult(
+                performance_score=score,
+                lcp_ms=float(lcp) if lcp is not None else None,
+                cls=float(cls) if cls is not None else None,
+                inp_ms=float(inp) if inp is not None else None,
+            )
     except Exception:
         return None

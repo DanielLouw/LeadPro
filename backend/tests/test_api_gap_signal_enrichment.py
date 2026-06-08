@@ -174,6 +174,30 @@ class TestServiceField:
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "SEO Package"
 
+    def test_slow_lcp_maps_to_website_modernisation(self, client, test_db):
+        """slow_lcp signal type maps to service='Website Modernisation'."""
+        run_id = _seed_run_with_signal(test_db, "slow_lcp", is_hard=False)
+        resp = client.get(f"/leads/run/{run_id}")
+        assert resp.status_code == 200
+        signal = resp.json()[0]["gap_signals"][0]
+        assert signal["service"] == "Website Modernisation"
+
+    def test_high_cls_maps_to_website_modernisation(self, client, test_db):
+        """high_cls signal type maps to service='Website Modernisation'."""
+        run_id = _seed_run_with_signal(test_db, "high_cls", is_hard=False)
+        resp = client.get(f"/leads/run/{run_id}")
+        assert resp.status_code == 200
+        signal = resp.json()[0]["gap_signals"][0]
+        assert signal["service"] == "Website Modernisation"
+
+    def test_slow_inp_maps_to_website_modernisation(self, client, test_db):
+        """slow_inp signal type maps to service='Website Modernisation'."""
+        run_id = _seed_run_with_signal(test_db, "slow_inp", is_hard=False)
+        resp = client.get(f"/leads/run/{run_id}")
+        assert resp.status_code == 200
+        signal = resp.json()[0]["gap_signals"][0]
+        assert signal["service"] == "Website Modernisation"
+
 
 # ---------------------------------------------------------------------------
 # sales_copy: non-empty for all 10 signal types
@@ -190,6 +214,9 @@ ALL_SIGNAL_TYPES = [
     ("no_sitemap", False),
     ("no_robots_txt", False),
     ("no_schema_markup", False),
+    ("slow_lcp", False),
+    ("high_cls", False),
+    ("slow_inp", False),
 ]
 
 

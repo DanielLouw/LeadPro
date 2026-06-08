@@ -18,12 +18,20 @@ A detectable technical deficiency in a business's web presence that indicates a 
 - No robots.txt → SEO Package
 - No schema markup → SEO Package
 - No mobile viewport tag → Website Modernisation
+- Slow LCP (Largest Contentful Paint > 4s) → Website Modernisation
+- High CLS (Cumulative Layout Shift > 0.25) → Website Modernisation
+- Slow INP (Interaction to Next Paint > 500ms) → Website Modernisation
+- No og:image Open Graph tag → SEO Package
+- No analytics detected (no GA4, GTM, or known third-party snippet) → SEO Package
+- Non-standard analytics detected (e.g. Plausible, Hotjar — GA4/GTM absent) → SEO Package
+- Missing H1 tag → SEO Package
+- No image alt text (≥3 images, none have alt attributes) → SEO Package
 
 ## Service
 A fixed category of work the user sells to a Lead, derived from that Lead's Gap Signals. Each Gap Signal maps to exactly one Service. The catalogue:
 - **Website Build** — for businesses with no website, a broken/parked site, or no HTTPS
-- **Website Modernisation** — for businesses whose site is slow or lacks mobile fundamentals
-- **SEO Package** — for businesses whose site is invisible to search engines
+- **Website Modernisation** — for businesses whose site is slow, fails Core Web Vitals, or lacks mobile fundamentals
+- **SEO Package** — for businesses whose site is invisible to search engines, lacks social sharing metadata, has no analytics instrumentation, or has structural on-page SEO gaps
 
 ## Gap Score
 A numerical ranking assigned to a Lead based on the severity and number of Gap Signals detected. Higher score = more obvious problems = higher priority for outreach. Hard signals are weighted above soft signals.
