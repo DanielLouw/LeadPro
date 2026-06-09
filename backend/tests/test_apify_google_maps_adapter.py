@@ -7,6 +7,7 @@ the apify-client SDK interface (duck-typed).
 """
 
 import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from app.lead_pipeline.adapters import ApifyGoogleMapsAdapter, ADAPTER_REGISTRY
@@ -59,18 +60,18 @@ def make_apify_client(
         poll_sequence = ["RUNNING", terminal_status]
 
     actor_client = MagicMock()
-    actor_client.start.return_value = {
-        "id": run_id,
-        "defaultDatasetId": dataset_id,
-        "status": "READY",
-    }
+    actor_client.start.return_value = SimpleNamespace(
+        id=run_id,
+        default_dataset_id=dataset_id,
+        status="READY",
+    )
 
     # Build sequential poll responses
     poll_iter = iter(poll_sequence)
 
     def _get_run():
         status = next(poll_iter, terminal_status)
-        return {"id": run_id, "defaultDatasetId": dataset_id, "status": status}
+        return SimpleNamespace(id=run_id, default_dataset_id=dataset_id, status=status)
 
     run_client = MagicMock()
     run_client.get = MagicMock(side_effect=lambda: _get_run())

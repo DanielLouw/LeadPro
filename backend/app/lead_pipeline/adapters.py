@@ -150,8 +150,9 @@ class ApifyGoogleMapsAdapter:
         run_info = await asyncio.to_thread(
             lambda: client.actor("compass/crawler-google-places").start(run_input=actor_input)
         )
-        apify_run_id: str = run_info["id"]
-        dataset_id: str = run_info["defaultDatasetId"]
+        apify_run_id: str = run_info.id
+        dataset_id: str = run_info.default_dataset_id
+        logger.info("ApifyGoogleMaps: actor started — run_id=%s dataset_id=%s", apify_run_id, dataset_id)
 
         self._update_db(db, run_id, apify_run_id=apify_run_id, apify_status=_STATUS_QUEUED)
 
@@ -162,7 +163,8 @@ class ApifyGoogleMapsAdapter:
                 await asyncio.sleep(_poll_interval)
 
             run_data = await asyncio.to_thread(client.run(apify_run_id).get)
-            status = run_data.get("status", "")
+            status = run_data.status if run_data else ""
+            logger.debug("ApifyGoogleMaps: poll — status=%s", status)
 
             if status == "RUNNING" and not seen_running:
                 seen_running = True
@@ -180,6 +182,7 @@ class ApifyGoogleMapsAdapter:
 
         items_response = await asyncio.to_thread(client.dataset(dataset_id).list_items)
         raw_items: list[dict] = items_response.items
+        logger.info("ApifyGoogleMaps: dataset returned %d raw items", len(raw_items))
 
         results: list[RawBusiness] = []
         for item in raw_items:
@@ -187,6 +190,9 @@ class ApifyGoogleMapsAdapter:
                 place_id = item.get("placeId")
                 if not place_id:
                     logger.warning("Apify item missing placeId — skipping: %r", item)
+                    continue
+                if item.get("permanentlyClosed") or item.get("temporarilyClosed"):
+                    logger.debug("ApifyGoogleMaps: skipping closed business %r", item.get("title"))
                     continue
                 results.append(
                     RawBusiness(
@@ -198,11 +204,14 @@ class ApifyGoogleMapsAdapter:
                         phone=item.get("phoneUnformatted"),
                         website_url=item.get("website"),
                         maps_url=item.get("url"),
+                        rating=item.get("totalScore"),
+                        review_count=item.get("reviewsCount"),
                     )
                 )
             except Exception:
                 logger.warning("Failed to map Apify item to RawBusiness — skipping: %r", item)
 
+        logger.info("ApifyGoogleMaps: mapped %d/%d items to RawBusiness", len(results), len(raw_items))
         return results[:max_results]
 
     def cost(self, n_scraped: int) -> float:
@@ -265,15 +274,20 @@ class ApifyFacebookPagesAdapter:
 
         async def _run(client: httpx.AsyncClient) -> list[RawBusiness]:
             run_url = f"{APIFY_API_BASE_URL}/acts/{_FACEBOOK_PAGES_ACTOR_ID}/runs"
+            request_payload = {"queries": [query], "maxResults": max_results}
+            logger.info("ApifyFacebookPages: POST %s — payload: %r", run_url, request_payload)
             post_resp = await client.post(
                 run_url,
                 params={"token": settings.APIFY_API_KEY},
-                json={"queries": [query], "maxResults": max_results},
+                json=request_payload,
             )
+            logger.info("ApifyFacebookPages: start response status=%d", post_resp.status_code)
+            logger.debug("ApifyFacebookPages: start response body: %s", post_resp.text)
             post_resp.raise_for_status()
             run_data = post_resp.json()["data"]
             run_id: str = run_data["id"]
             dataset_id: str = run_data["defaultDatasetId"]
+            logger.info("ApifyFacebookPages: actor started — run_id=%s dataset_id=%s", run_id, dataset_id)
 
             status_url = f"{APIFY_API_BASE_URL}/acts/{_FACEBOOK_PAGES_ACTOR_ID}/runs/{run_id}"
             while True:
@@ -283,6 +297,7 @@ class ApifyFacebookPagesAdapter:
                 )
                 status_resp.raise_for_status()
                 status = status_resp.json()["data"]["status"]
+                logger.info("ApifyFacebookPages: poll — status=%s", status)
                 if status in _APIFY_TERMINAL_STATUSES:
                     break
                 if _poll_interval > 0:
@@ -298,6 +313,10 @@ class ApifyFacebookPagesAdapter:
             )
             dataset_resp.raise_for_status()
             items: list[dict] = dataset_resp.json()
+            logger.info("ApifyFacebookPages: dataset returned %d raw items", len(items))
+            if items:
+                logger.debug("ApifyFacebookPages: first raw item keys: %s", list(items[0].keys()))
+                logger.debug("ApifyFacebookPages: first raw item: %r", items[0])
 
             results: list[RawBusiness] = []
             for item in items:
@@ -313,7 +332,7 @@ class ApifyFacebookPagesAdapter:
                 phone: str | None = item.get("phone") or None
                 website_url: str | None = item.get("website") or None
                 if phone is None and website_url is None:
-                    logger.debug("Skipping Facebook page %r — no phone or website", item.get("id"))
+                    logger.info("Skipping Facebook page %r — no phone or website. Item keys: %s", item.get("id"), list(item.keys()))
                     continue
                 results.append(
                     RawBusiness(
@@ -327,6 +346,7 @@ class ApifyFacebookPagesAdapter:
                         maps_url=None,
                     )
                 )
+            logger.info("ApifyFacebookPages: mapped %d/%d items to RawBusiness", len(results), len(items))
             return results
 
         if _http_client is not None:

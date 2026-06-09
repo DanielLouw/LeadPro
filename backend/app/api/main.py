@@ -1,3 +1,5 @@
+import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -25,6 +27,13 @@ _BACKEND_DIR = Path(__file__).parent.parent.parent
 
 @app.on_event("startup")
 def on_startup() -> None:
+    log_level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        force=True,
+    )
+
     from alembic.config import Config
     from alembic import command
     from sqlalchemy import text

@@ -115,8 +115,13 @@ GOOD_HTML = (
     "<title>Good Site</title>"
     "<meta name='description' content='desc'>"
     "<meta name='viewport' content='width=device-width'>"
+    "<meta property='og:image' content='https://example.com/img.jpg'>"
     "<script type='application/ld+json'>{}</script>"
-    "</head><body></body></html>"
+    "<script>gtag('config', 'G-XXXXXXXX');</script>"
+    "</head><body>"
+    "<h1>Good Site</h1>"
+    "<img src='photo.jpg' alt='Business photo'>"
+    "</body></html>"
 )
 
 PAGESPEED_LOW_RESPONSE = {
@@ -280,8 +285,14 @@ FULL_HTML = (
     "<title>My Business</title>"
     "<meta name='description' content='We do great things'>"
     "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+    "<meta property='og:image' content='https://example.com/img.jpg'>"
     "<script type='application/ld+json'>{\"@type\": \"LocalBusiness\"}</script>"
-    "</head><body><p>Hello</p></body></html>"
+    "<script>gtag('config', 'G-XXXXXXXX');</script>"
+    "</head><body>"
+    "<h1>My Business</h1>"
+    "<img src='photo.jpg' alt='Business photo'>"
+    "<p>Hello</p>"
+    "</body></html>"
 )
 
 # HTML missing meta title
@@ -747,3 +758,302 @@ async def test_soft_weight_less_than_hard_weight(httpx_mock, no_pagespeed_key):
 
     # The hard signal's score must exceed the soft signal's score
     assert hard_result.gap_score > soft_result.gap_score
+
+
+# ===========================================================================
+# CORE WEB VITALS TESTS (issue #0025)
+# ===========================================================================
+
+PAGESPEED_CWV_POOR = {
+    "lighthouseResult": {
+        "categories": {"performance": {"score": 0.75}},
+        "audits": {
+            "largest-contentful-paint": {"numericValue": 5000.0},
+            "cumulative-layout-shift": {"numericValue": 0.30},
+            "interaction-to-next-paint": {"numericValue": 600.0},
+        },
+    }
+}
+
+PAGESPEED_CWV_GOOD = {
+    "lighthouseResult": {
+        "categories": {"performance": {"score": 0.75}},
+        "audits": {
+            "largest-contentful-paint": {"numericValue": 2000.0},
+            "cumulative-layout-shift": {"numericValue": 0.05},
+            "interaction-to-next-paint": {"numericValue": 100.0},
+        },
+    }
+}
+
+PAGESPEED_CWV_BOUNDARY = {
+    "lighthouseResult": {
+        "categories": {"performance": {"score": 0.75}},
+        "audits": {
+            "largest-contentful-paint": {"numericValue": 4000.0},
+            "cumulative-layout-shift": {"numericValue": 0.25},
+            "interaction-to-next-paint": {"numericValue": 500.0},
+        },
+    }
+}
+
+
+def _mock_pagespeed(httpx_mock, response_json):
+    httpx_mock.add_response(
+        url=re.compile(r"https://www\.googleapis\.com/pagespeedonline/v5/runPagespeed"),
+        status_code=200,
+        json=response_json,
+    )
+
+
+# ---------------------------------------------------------------------------
+# slow_lcp
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_slow_lcp_fires_above_threshold(httpx_mock):
+    """slow_lcp fires when LCP > 4000ms."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_POOR)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "slow_lcp" in signal_types
+    sig = next(s for s in result.gap_signals if s.signal_type == "slow_lcp")
+    assert sig.is_hard is False
+
+
+@pytest.mark.asyncio
+async def test_slow_lcp_absent_at_threshold(httpx_mock):
+    """slow_lcp does not fire when LCP == 4000ms (boundary — not strictly above)."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_BOUNDARY)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "slow_lcp" not in signal_types
+
+
+@pytest.mark.asyncio
+async def test_slow_lcp_absent_below_threshold(httpx_mock):
+    """slow_lcp does not fire when LCP is well within Good range."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_GOOD)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "slow_lcp" not in signal_types
+
+
+# ---------------------------------------------------------------------------
+# high_cls
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_high_cls_fires_above_threshold(httpx_mock):
+    """high_cls fires when CLS > 0.25."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_POOR)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "high_cls" in signal_types
+    sig = next(s for s in result.gap_signals if s.signal_type == "high_cls")
+    assert sig.is_hard is False
+
+
+@pytest.mark.asyncio
+async def test_high_cls_absent_at_threshold(httpx_mock):
+    """high_cls does not fire when CLS == 0.25 (boundary)."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_BOUNDARY)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "high_cls" not in signal_types
+
+
+@pytest.mark.asyncio
+async def test_high_cls_absent_below_threshold(httpx_mock):
+    """high_cls does not fire when CLS is well within Good range."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_GOOD)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "high_cls" not in signal_types
+
+
+# ---------------------------------------------------------------------------
+# slow_inp
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_slow_inp_fires_above_threshold(httpx_mock):
+    """slow_inp fires when INP > 500ms."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_POOR)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "slow_inp" in signal_types
+    sig = next(s for s in result.gap_signals if s.signal_type == "slow_inp")
+    assert sig.is_hard is False
+
+
+@pytest.mark.asyncio
+async def test_slow_inp_absent_at_threshold(httpx_mock):
+    """slow_inp does not fire when INP == 500ms (boundary)."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_BOUNDARY)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "slow_inp" not in signal_types
+
+
+@pytest.mark.asyncio
+async def test_slow_inp_absent_below_threshold(httpx_mock):
+    """slow_inp does not fire when INP is well within Good range."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_GOOD)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "slow_inp" not in signal_types
+
+
+# ---------------------------------------------------------------------------
+# CWV independence from low_pagespeed
+# ---------------------------------------------------------------------------
+
+PAGESPEED_LOW_SCORE_GOOD_CWV = {
+    "lighthouseResult": {
+        "categories": {"performance": {"score": 0.30}},
+        "audits": {
+            "largest-contentful-paint": {"numericValue": 2000.0},
+            "cumulative-layout-shift": {"numericValue": 0.05},
+            "interaction-to-next-paint": {"numericValue": 100.0},
+        },
+    }
+}
+
+
+@pytest.mark.asyncio
+async def test_cwv_fire_without_low_pagespeed(httpx_mock):
+    """CWV signals fire even when composite PageSpeed score is >= 50."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_CWV_POOR)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "low_pagespeed" not in signal_types
+    assert "slow_lcp" in signal_types
+    assert "high_cls" in signal_types
+    assert "slow_inp" in signal_types
+
+
+@pytest.mark.asyncio
+async def test_low_pagespeed_fires_without_cwv(httpx_mock):
+    """low_pagespeed fires even when individual CWV metrics are in Good range."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_LOW_SCORE_GOOD_CWV)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "low_pagespeed" in signal_types
+    assert "slow_lcp" not in signal_types
+    assert "high_cls" not in signal_types
+    assert "slow_inp" not in signal_types
+
+
+# ---------------------------------------------------------------------------
+# CWV gating on PAGESPEED_API_KEY
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_cwv_absent_when_no_api_key(httpx_mock, no_pagespeed_key):
+    """CWV signals do not fire when PAGESPEED_API_KEY is not set."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+
+    result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "slow_lcp" not in signal_types
+    assert "high_cls" not in signal_types
+    assert "slow_inp" not in signal_types
+
+
+# ---------------------------------------------------------------------------
+# CWV graceful degradation
+# ---------------------------------------------------------------------------
+
+PAGESPEED_NO_AUDITS = {
+    "lighthouseResult": {
+        "categories": {"performance": {"score": 0.75}},
+    }
+}
+
+
+@pytest.mark.asyncio
+async def test_cwv_graceful_when_audits_missing(httpx_mock):
+    """CWV signals do not fire and do not crash when audits key is absent."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+    _mock_pagespeed(httpx_mock, PAGESPEED_NO_AUDITS)
+
+    with patch.object(settings, "PAGESPEED_API_KEY", "test-key"):
+        result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "slow_lcp" not in signal_types
+    assert "high_cls" not in signal_types
+    assert "slow_inp" not in signal_types
+    assert isinstance(result.gap_score, float)
