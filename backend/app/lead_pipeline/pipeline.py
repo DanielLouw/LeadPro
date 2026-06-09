@@ -15,7 +15,12 @@ import yaml
 from sqlalchemy.orm import Session
 
 from app.config import DEFAULT_MAX_RESULTS_PER_RUN
-from app.gap_analyzer.analyzer import analyze
+from app.gap_analyzer.analyzer import (
+    HARD_SIGNAL_WEIGHT,
+    SOFT_SIGNAL_WEIGHT,
+    analyze,
+    analyze_review_signals,
+)
 from app.lead_pipeline.adapters import ADAPTER_REGISTRY
 from app.models import GapSignal, Lead, Note, Run, RunStatus
 from app.places_scraper.scraper import RawBusiness, scrape_queries
@@ -151,6 +156,16 @@ async def _analyze_businesses(
         nonlocal completed_count
         async with semaphore:
             result = await analyze(biz.website_url)
+
+        review_signals = analyze_review_signals(biz.review_count)
+        if review_signals:
+            result.gap_signals.extend(review_signals)
+            result.gap_score = float(sum(
+                HARD_SIGNAL_WEIGHT if s.is_hard else SOFT_SIGNAL_WEIGHT
+                for s in result.gap_signals
+            ))
+            result.has_hard_signal = any(s.is_hard for s in result.gap_signals)
+
         completed_count += 1
         if on_query_complete:
             on_query_complete(completed_count)

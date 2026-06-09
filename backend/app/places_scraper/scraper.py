@@ -24,6 +24,8 @@ class RawBusiness:
     phone: str | None
     website_url: str | None
     maps_url: str | None
+    rating: float | None = None
+    review_count: int | None = None
 
 
 async def scrape_queries(queries: list[str], max_results: int = DEFAULT_MAX_RESULTS_PER_RUN) -> list[RawBusiness]:

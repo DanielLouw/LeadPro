@@ -67,7 +67,7 @@ def _seed_run_with_leads(test_db) -> int:
     Lead layout:
       lead 1: gap_score=9.0, name="Ace Plumber",   city="Austin",  status="new",       signal="no_website"
       lead 2: gap_score=6.0, name="Beta Roofing",  city="Boston",  status="reviewing", signal="missing_meta_title"
-      lead 3: gap_score=3.0, name="Cedar HVAC",    city="Chicago", status="contacted", signal="no_website" + "poor_reviews"
+      lead 3: gap_score=20.0, name="Cedar HVAC",    city="Chicago", status="contacted", signal="no_website" + "few_google_reviews"
     """
     db = test_db()
     try:
@@ -76,9 +76,9 @@ def _seed_run_with_leads(test_db) -> int:
         db.flush()
 
         leads_data = [
-            dict(external_id="p1", name="Ace Plumber",  city="Austin",  state="TX", gap_score=9.0, status="new",       signals=[("no_website", True)]),
-            dict(external_id="p2", name="Beta Roofing", city="Boston",  state="MA", gap_score=6.0, status="reviewing", signals=[("missing_meta_title", False)]),
-            dict(external_id="p3", name="Cedar HVAC",   city="Chicago", state="IL", gap_score=3.0, status="contacted", signals=[("no_website", True), ("poor_reviews", False)]),
+            dict(external_id="p1", name="Ace Plumber",  city="Austin",  state="TX", gap_score=9.0,  status="new",       signals=[("no_website", True)]),
+            dict(external_id="p2", name="Beta Roofing", city="Boston",  state="MA", gap_score=6.0,  status="reviewing", signals=[("missing_meta_title", False)]),
+            dict(external_id="p3", name="Cedar HVAC",   city="Chicago", state="IL", gap_score=20.0, status="contacted", signals=[("no_website", True), ("few_google_reviews", True)]),
         ]
 
         for ld in leads_data:

@@ -33,6 +33,7 @@ HARD_SIGNALS = {
     "broken_website": "Website is broken or unreachable",
     "no_https": "Website does not use HTTPS",
     "low_pagespeed": "Mobile PageSpeed score below 50",
+    "few_google_reviews": "Fewer than 20 Google reviews — minimal local search visibility",
 }
 
 SOFT_SIGNALS = {
@@ -65,6 +66,7 @@ SIGNAL_SERVICE: dict[str, str] = {
     "no_sitemap": "SEO Package",
     "no_robots_txt": "SEO Package",
     "no_schema_markup": "SEO Package",
+    "few_google_reviews": "SEO Package",
 }
 
 SIGNAL_SALES_COPY: dict[str, str] = {
@@ -163,6 +165,15 @@ SIGNAL_SALES_COPY: dict[str, str] = {
         "Website Modernisation identifies the JavaScript and third-party scripts "
         "blocking the main thread and eliminates the delay."
     ),
+    "few_google_reviews": (
+        "This business has fewer than 20 Google reviews, which puts them at a serious "
+        "disadvantage in local search — Google's algorithm favours businesses with "
+        "strong review volume, and most consumers won't trust a business they can't "
+        "verify through social proof. Competitors with more reviews will consistently "
+        "rank above them and convert at higher rates. An SEO Package that includes "
+        "review generation strategy and Google Business Profile optimisation can close "
+        "this gap quickly and create visible results within weeks."
+    ),
 }
 
 
@@ -204,6 +215,19 @@ class AnalysisResult:
 
     def qualifies_as_lead(self) -> bool:
         return self.has_hard_signal
+
+
+def analyze_review_signals(review_count: int | None) -> list[GapSignalResult]:
+    """Return gap signals derived from Google review count (Apify-sourced data)."""
+    if review_count is None or review_count >= 20:
+        return []
+    return [
+        GapSignalResult(
+            signal_type="few_google_reviews",
+            is_hard=True,
+            description=f"{HARD_SIGNALS['few_google_reviews']} ({review_count} reviews)",
+        )
+    ]
 
 
 @dataclass

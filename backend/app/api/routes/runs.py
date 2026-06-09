@@ -14,6 +14,7 @@ from app.config import (
     PLACES_RESULTS_PER_REQUEST,
 )
 from app.database import get_db
+from app.lead_pipeline.adapters import ADAPTER_REGISTRY
 from app.lead_pipeline.pipeline import execute_run
 from app.models import Lead, Run, Settings
 
@@ -125,7 +126,20 @@ def get_run_estimate(body: CreateRunRequest) -> RunEstimateResponse:
 
 @router.post("/", response_model=RunResponse, status_code=201)
 async def create_run(body: CreateRunRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    run = Run(config_yaml=body.config_yaml, status="pending", total_leads=0)
+    try:
+        config = yaml.safe_load(body.config_yaml)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {exc}") from exc
+    if not isinstance(config, dict):
+        raise HTTPException(status_code=400, detail="Config must be a YAML mapping")
+
+    source: str = config.get("source", "google_places")
+    if source not in ADAPTER_REGISTRY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown source '{source}'. Must be one of: {sorted(ADAPTER_REGISTRY)}",
+        )
+    run = Run(config_yaml=body.config_yaml, status="pending", total_leads=0, source=source)
     db.add(run)
     db.commit()
     db.refresh(run)
