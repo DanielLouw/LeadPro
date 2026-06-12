@@ -151,6 +151,30 @@ async def test_fetch_starts_apify_actor_with_correct_input():
     assert actor_input["maxCrawledPlacesPerSearch"] == 5
 
 
+async def test_fetch_builds_statewide_query_when_city_absent():
+    """
+    A state-wide search (no city in source_config) must build a clean query
+    with no double spaces: "plumbers in TX", not "plumbers in  TX".
+    """
+    mock_client = make_apify_client()
+
+    adapter = ApifyGoogleMapsAdapter()
+    source_config = {"search_term": "plumbers", "state": "TX"}
+
+    with patch("app.lead_pipeline.adapters.settings") as mock_settings:
+        mock_settings.APIFY_API_KEY = "test_key"
+        await adapter.fetch(
+            source_config=source_config,
+            max_results=5,
+            _apify_client=mock_client,
+            _poll_interval=0,
+        )
+
+    call_kwargs = mock_client.actor.return_value.start.call_args
+    actor_input = call_kwargs.kwargs.get("run_input") or call_kwargs.args[0]
+    assert actor_input["searchStringsArray"] == ["plumbers in TX"]
+
+
 # ---------------------------------------------------------------------------
 # Cycle 3: fetch() writes run.apify_run_id after actor start
 # ---------------------------------------------------------------------------
