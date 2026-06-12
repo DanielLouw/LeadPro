@@ -32,7 +32,7 @@ const mockLeads = [
   {
     id: 1,
     run_id: 1,
-    place_id: 'place_001',
+    external_id: 'place_001',
     name: 'Alpha Plumber',
     address: '1 Main St, Austin, TX 78701',
     city: 'Austin',
@@ -51,7 +51,7 @@ const mockLeads = [
   {
     id: 2,
     run_id: 1,
-    place_id: 'place_002',
+    external_id: 'place_002',
     name: 'Beta Plumber',
     address: '2 Oak Ave, Dallas, TX 75201',
     city: 'Dallas',
@@ -195,7 +195,7 @@ describe('LeadResults â€” run selector', () => {
       {
         id: 10,
         run_id: 2,
-        place_id: 'place_x',
+        external_id: 'place_x',
         name: 'Second Run Lead',
         city: 'Houston',
         state: 'TX',
@@ -1112,7 +1112,7 @@ describe('LeadResults — service badges', () => {
     {
       id: 10,
       run_id: 1,
-      place_id: 'place_010',
+      external_id: 'place_010',
       name: 'Website Build Lead',
       city: 'Austin',
       state: 'TX',
@@ -1130,7 +1130,7 @@ describe('LeadResults — service badges', () => {
     {
       id: 11,
       run_id: 1,
-      place_id: 'place_011',
+      external_id: 'place_011',
       name: 'Multi-Service Lead',
       city: 'Dallas',
       state: 'TX',
@@ -1150,7 +1150,7 @@ describe('LeadResults — service badges', () => {
     {
       id: 12,
       run_id: 1,
-      place_id: 'place_012',
+      external_id: 'place_012',
       name: 'Modernisation Lead',
       city: 'Houston',
       state: 'TX',
@@ -1250,7 +1250,7 @@ describe('LeadResults — service badges', () => {
 
   it('renders no badges for a lead with no gap_signals', async () => {
     const leadNoSignals = {
-      id: 20, run_id: 1, place_id: 'p20', name: 'No Signals Co', phone: null,
+      id: 20, run_id: 1, external_id: 'p20', name: 'No Signals Co', phone: null,
       address: null, city: 'Austin', state: 'TX', email: null, website_url: null,
       maps_url: null, gap_score: 0, status: 'new', gap_signals: [], note: null,
     }
@@ -1264,7 +1264,7 @@ describe('LeadResults — service badges', () => {
 
   it('silently omits badges for unknown service strings', async () => {
     const leadUnknown = {
-      id: 21, run_id: 1, place_id: 'p21', name: 'Unknown Service Co', phone: null,
+      id: 21, run_id: 1, external_id: 'p21', name: 'Unknown Service Co', phone: null,
       address: null, city: 'Austin', state: 'TX', email: null, website_url: null,
       maps_url: null, gap_score: 5, status: 'new', note: null,
       gap_signals: [

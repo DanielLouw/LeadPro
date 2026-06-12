@@ -10,7 +10,7 @@
   gap: 32px;
   padding: 0 24px;
   height: 52px;
-  background: #1a1a2e;
+  background: var(--color-nav-bg);
   color: #fff;
 }
 
@@ -36,7 +36,37 @@
 .nav-links a:hover,
 .nav-links a.active {
   color: #fff;
-  border-bottom-color: #4f8ef7;
+  border-bottom-color: var(--color-primary-on-dark);
+}
+
+.nav-links a:focus-visible {
+  outline: none;
+  color: #fff;
+  border-bottom-color: var(--color-primary-on-dark);
+}
+
+.nav-theme-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-control);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.nav-theme-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .main {

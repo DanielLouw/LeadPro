@@ -16,15 +16,7 @@ const pulseKeyframes = `
 function SkeletonCell({ width = '80%' }: { width?: string }) {
   return (
     <td>
-      <div
-        style={{
-          height: '0.875rem',
-          borderRadius: '4px',
-          background: '#e5e7eb',
-          width,
-          animation: 'skeleton-pulse 1.4s ease-in-out infinite',
-        }}
-      />
+      <div className="lp-skeleton-bar" style={{ width }} />
     </td>
   )
 }

@@ -72,21 +72,22 @@ export default function SettingsPage() {
   }
 
   if (loading) {
-    return <p>Loading settings…</p>
+    return <p className="lp-help">Loading settings…</p>
   }
 
   if (loadError) {
-    return <p className="error">Error loading settings: {loadError}</p>
+    return <p className="lp-error">Error loading settings: {loadError}</p>
   }
 
   return (
     <div className="settings-page">
-      <h1>Settings</h1>
-      <form onSubmit={handleSave}>
-        <div className="field">
-          <label htmlFor="google-budget">Google Places monthly budget (USD)</label>
+      <h1 className="lp-page-title">Settings</h1>
+      <form onSubmit={handleSave} className="lp-card" style={{ maxWidth: '440px' }}>
+        <div style={{ marginBottom: 'var(--space-4)' }}>
+          <label htmlFor="google-budget" className="lp-label">Google Places monthly budget (USD)</label>
           <input
             id="google-budget"
+            className="lp-input"
             type="number"
             min="0.01"
             step="any"
@@ -95,10 +96,11 @@ export default function SettingsPage() {
             disabled={formStatus === 'saving'}
           />
         </div>
-        <div className="field">
-          <label htmlFor="apify-budget">Apify monthly budget (USD)</label>
+        <div style={{ marginBottom: 'var(--space-5)' }}>
+          <label htmlFor="apify-budget" className="lp-label">Apify monthly budget (USD)</label>
           <input
             id="apify-budget"
+            className="lp-input"
             type="number"
             min="0.01"
             step="any"
@@ -107,12 +109,16 @@ export default function SettingsPage() {
             disabled={formStatus === 'saving'}
           />
         </div>
-        <button type="submit" disabled={formStatus === 'saving'}>
-          {formStatus === 'saving' ? 'Saving…' : 'Save'}
-        </button>
-        {formStatus === 'saved' && <span className="saved-notice">Saved!</span>}
+        <div className="lp-row">
+          <button type="submit" className="btn btn-primary" disabled={formStatus === 'saving'}>
+            {formStatus === 'saving' ? 'Saving…' : 'Save'}
+          </button>
+          {formStatus === 'saved' && (
+            <span className="lp-success-text">Saved!</span>
+          )}
+        </div>
         {formStatus === 'error' && saveError && (
-          <p className="error">Save failed: {saveError}</p>
+          <p className="lp-error">Save failed: {saveError}</p>
         )}
       </form>
     </div>

@@ -15,13 +15,6 @@ function mockFetchGet(data: object) {
   } as unknown as Response)
 }
 
-function mockFetchPatch(data: object) {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: () => Promise.resolve(data),
-  } as unknown as Response)
-}
-
 function renderSettings() {
   return render(
     <MemoryRouter>
@@ -85,7 +78,7 @@ describe('SettingsPage - saves settings', () => {
     const user = userEvent.setup()
 
     let callCount = 0
-    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
       callCount++
       if (options?.method === 'PATCH') {
         return Promise.resolve({

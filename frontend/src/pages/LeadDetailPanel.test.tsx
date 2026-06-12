@@ -10,7 +10,7 @@ function makeLead(overrides: Partial<Lead> = {}): Lead {
   return {
     id: 1,
     run_id: 1,
-    place_id: 'place_001',
+    external_id: 'place_001',
     name: 'Alpha Plumber',
     phone: '(512) 555-0001',
     address: '1 Main St, Austin, TX 78701',
