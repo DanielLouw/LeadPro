@@ -22,3 +22,7 @@ frontend/dist/
 .idea/
 *.swp
 *.swo
+
+# Claude Code (local settings/worktrees stay personal; launch.json is shared)
+.claude/*
+!.claude/launch.json

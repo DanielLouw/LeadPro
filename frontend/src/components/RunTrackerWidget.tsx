@@ -41,7 +41,7 @@ function SpendRow({ group, showWarnings, label }: BarProps) {
   const ratio = spendRatio(group)
   const pct = Math.min(ratio * 100, 100)
 
-  let barColor = '#4f8ef7' // default blue
+  let barColor = 'var(--color-primary-on-dark)' // brand blue, on-dark variant
   if (showWarnings) {
     if (ratio > 1) {
       barColor = '#ef4444' // red — over budget

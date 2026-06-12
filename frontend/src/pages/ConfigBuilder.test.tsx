@@ -74,32 +74,43 @@ describe('ConfigBuilder - custom business type', () => {
   })
 })
 
-// -- 5. Selecting a state populates the city list -----------------------------
-describe('ConfigBuilder - state -> city picker', () => {
-  it('selecting a state populates the city dropdown with cities for that state', async () => {
+// -- 5. Selecting a state adds it to the selection (state-wide search) --------
+describe('ConfigBuilder - state selection', () => {
+  it('selecting a state adds it to the selected states list', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
     const stateSelect = screen.getByRole('combobox', { name: /select state/i })
     await user.selectOptions(stateSelect, 'TX')
-    expect(screen.getByRole('option', { name: /Austin/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Dallas/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Houston/i })).toBeInTheDocument()
+
+    const selectedStates = screen.getByRole('list', { name: /selected states/i })
+    expect(within(selectedStates).getByText(/Texas/i)).toBeInTheDocument()
   })
-})
 
-// -- 6. Selecting a city adds it to the selection -----------------------------
-describe('ConfigBuilder - city selection', () => {
-  it('selecting a city from the dropdown adds it to selected cities', async () => {
+  it('does not render a city dropdown', () => {
+    renderConfigBuilder()
+    expect(screen.queryByRole('combobox', { name: /select city/i })).not.toBeInTheDocument()
+  })
+
+  it('allows selecting multiple states', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
     const stateSelect = screen.getByRole('combobox', { name: /select state/i })
     await user.selectOptions(stateSelect, 'TX')
-    const citySelect = screen.getByRole('combobox', { name: /select city/i })
-    await user.selectOptions(citySelect, 'Austin')
+    await user.selectOptions(stateSelect, 'CA')
 
-    // the selected city should appear as a tag/chip in a "selected cities" region
-    const selectedCities = screen.getByRole('list', { name: /selected cities/i })
-    expect(within(selectedCities).getByText(/Austin, TX/i)).toBeInTheDocument()
+    const selectedStates = screen.getByRole('list', { name: /selected states/i })
+    expect(within(selectedStates).getByText(/Texas/i)).toBeInTheDocument()
+    expect(within(selectedStates).getByText(/California/i)).toBeInTheDocument()
+  })
+
+  it('a selected state can be removed', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+    const stateSelect = screen.getByRole('combobox', { name: /select state/i })
+    await user.selectOptions(stateSelect, 'TX')
+
+    await user.click(screen.getByRole('button', { name: /remove texas/i }))
+    expect(screen.queryByRole('list', { name: /selected states/i })).not.toBeInTheDocument()
   })
 })
 
@@ -165,16 +176,15 @@ describe('ConfigBuilder - Run button fetches estimate', () => {
     vi.restoreAllMocks()
   })
 
-  async function selectTypeAndCity(user: ReturnType<typeof userEvent.setup>) {
+  async function selectTypeAndState(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole('checkbox', { name: /plumbers/i }))
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
-    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
   }
 
   it('clicking Run fetches POST /api/runs/estimate and displays query count, results, and cost', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
-    await selectTypeAndCity(user)
+    await selectTypeAndState(user)
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 
@@ -188,7 +198,7 @@ describe('ConfigBuilder - Run button fetches estimate', () => {
   it('shows "Confirm & start run" button after estimate is displayed', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
-    await selectTypeAndCity(user)
+    await selectTypeAndState(user)
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 
@@ -200,7 +210,7 @@ describe('ConfigBuilder - Run button fetches estimate', () => {
   it('"Cancel" at estimate step returns to editing (hides estimate, shows Run button)', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
-    await selectTypeAndCity(user)
+    await selectTypeAndState(user)
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
     await waitFor(() =>
@@ -220,7 +230,7 @@ describe('ConfigBuilder - Run button fetches estimate', () => {
     mockNavigate.mockClear()
     const user = userEvent.setup()
     renderConfigBuilder()
-    await selectTypeAndCity(user)
+    await selectTypeAndState(user)
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
     await waitFor(() =>
@@ -273,12 +283,14 @@ describe('ConfigBuilder — source selector', () => {
     expect(select.value).toBe('google_places')
   })
 
-  it('switching to Apify Google Maps shows search term and state/city fields', async () => {
+  it('switching to Apify Google Maps shows search term and state fields, no city', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
     const select = screen.getByRole('combobox', { name: /lead source/i })
     await user.selectOptions(select, 'apify_google_maps')
     expect(screen.getByRole('textbox', { name: /search term/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /select state/i })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /select city/i })).not.toBeInTheDocument()
     // The Google Places business type section should be gone
     expect(screen.queryByText('Home Services')).not.toBeInTheDocument()
   })
@@ -346,14 +358,13 @@ describe('ConfigBuilder — config YAML shape', () => {
 
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('Google Places YAML has nested source_config.queries', async () => {
+  it('Google Places YAML has nested source_config.queries with state-wide queries', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
 
-    // Select plumbers + Austin TX
+    // Select plumbers + Texas (state-wide)
     await user.click(screen.getByRole('checkbox', { name: /plumbers/i }))
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
-    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 
@@ -369,17 +380,17 @@ describe('ConfigBuilder — config YAML shape', () => {
       expect(parsed).toContain('source: google_places')
       expect(parsed).toContain('source_config:')
       expect(parsed).toContain('queries:')
+      expect(parsed).toContain('plumbers in Texas')
     })
   })
 
-  it('Apify Google Maps YAML has source: apify_google_maps and source_config with search_term/city/state', async () => {
+  it('Apify Google Maps YAML has source: apify_google_maps and source_config with search_term/state, no city', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
 
     await user.selectOptions(screen.getByRole('combobox', { name: /lead source/i }), 'apify_google_maps')
     await user.type(screen.getByRole('textbox', { name: /search term/i }), 'plumbers')
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
-    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 
@@ -395,8 +406,8 @@ describe('ConfigBuilder — config YAML shape', () => {
       expect(yaml).toContain('source: apify_google_maps')
       expect(yaml).toContain('source_config:')
       expect(yaml).toContain('search_term: plumbers')
-      expect(yaml).toContain('city: Austin')
       expect(yaml).toContain('state: TX')
+      expect(yaml).not.toContain('city:')
     })
   })
 
@@ -464,7 +475,7 @@ describe('ConfigBuilder — Apify confirm step shows monthly budget', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /lead source/i }), 'apify_google_maps')
     await user.type(screen.getByRole('textbox', { name: /search term/i }), 'plumbers')
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
-    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
+    
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 
@@ -501,7 +512,7 @@ describe('ConfigBuilder — Apify confirm step shows monthly budget', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /lead source/i }), 'apify_google_maps')
     await user.type(screen.getByRole('textbox', { name: /search term/i }), 'plumbers')
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
-    await user.selectOptions(screen.getByRole('combobox', { name: /select city/i }), 'Austin')
+    
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 

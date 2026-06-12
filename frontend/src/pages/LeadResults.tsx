@@ -6,6 +6,7 @@ import Spinner from '../components/Spinner'
 import ToastContainer, { makeToast, type ToastItem } from '../components/Toast'
 import ServiceBadge, { getServiceBadges } from '../components/ServiceBadge'
 import StatusBadge from '../components/StatusBadge'
+import { ALL_STATUSES, formatLocation, topSignalLabels } from '../utils/leadDisplay'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,24 +51,9 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: 'city', label: 'City (A–Z)' },
 ]
 
-const ALL_STATUSES = ['new', 'reviewing', 'contacted', 'pass']
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatLocation(lead: Lead): string {
-  if (lead.city && lead.state) return `${lead.city}, ${lead.state}`
-  if (lead.city) return lead.city
-  if (lead.state) return lead.state
-  return '—'
-}
-
-function topSignalLabels(lead: Lead): string[] {
-  const hard = lead.gap_signals.filter(s => s.is_hard)
-  const soft = lead.gap_signals.filter(s => !s.is_hard)
-  return [...hard, ...soft].slice(0, 3).map(s => s.signal_type.replace(/_/g, ' '))
-}
 
 function buildLeadsUrl(
   runId: number,
@@ -440,10 +426,10 @@ export default function LeadResults() {
 
       {error && <p role="alert" className="lp-error" style={{ marginBottom: '12px' }}>{error}</p>}
 
-      {loadingRuns && <p style={{ color: '#6b7280' }}>Loading runs…</p>}
+      {loadingRuns && <p className="lp-help">Loading runs…</p>}
 
       {!loadingRuns && runs.length === 0 && !error && (
-        <p style={{ color: '#6b7280' }}>No runs yet. Go to Config Builder to create one.</p>
+        <p className="lp-help">No runs yet. Go to Config Builder to create one.</p>
       )}
 
       {/* Top toolbar — run selector + actions */}
@@ -476,8 +462,8 @@ export default function LeadResults() {
 
           {selectedRun && (
             <section aria-label="Run details" style={{ flex: '1 1 auto' }}>
-              <p style={{ fontSize: '13px', color: '#6b7280', lineHeight: '36px' }}>
-                Status: <strong style={{ color: '#111827' }}>{selectedRun.status}</strong>
+              <p style={{ fontSize: '13px', color: 'var(--color-muted)', lineHeight: '36px' }}>
+                Status: <strong style={{ color: 'var(--color-text)' }}>{selectedRun.status}</strong>
                 {selectedRun.total_leads > 0 && ` · ${selectedRun.total_leads} qualified leads`}
                 {selectedRun.error_message && ` · Error: ${selectedRun.error_message}`}
               </p>
@@ -532,9 +518,9 @@ export default function LeadResults() {
         <section aria-label="Run cost estimate">
           <div className="lp-card" style={{ maxWidth: '400px' }}>
             <h2 className="lp-section-title" style={{ marginBottom: '12px' }}>Estimated Cost</h2>
-            <p style={{ marginBottom: '4px', color: '#374151' }}>{newRunStep.estimate.query_count} queries</p>
-            <p style={{ marginBottom: '4px', color: '#374151' }}>{newRunStep.estimate.estimated_results} results</p>
-            <p style={{ marginBottom: '16px', color: '#374151' }}>${newRunStep.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
+            <p style={{ marginBottom: '4px', color: 'var(--color-text-secondary)' }}>{newRunStep.estimate.query_count} queries</p>
+            <p style={{ marginBottom: '4px', color: 'var(--color-text-secondary)' }}>{newRunStep.estimate.estimated_results} results</p>
+            <p style={{ marginBottom: '16px', color: 'var(--color-text-secondary)' }}>${newRunStep.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
             <div className="lp-row">
               <button
                 className="btn btn-primary"
@@ -554,38 +540,14 @@ export default function LeadResults() {
 
       {/* Apify status indicator — shown when run has apify_run_id */}
       {selectedRun?.apify_run_id && apifyStatus && (
-        <div
-          role="status"
-          aria-label="Apify status"
-          style={{
-            background: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            borderRadius: '6px',
-            padding: '10px 16px',
-            marginBottom: '16px',
-            fontSize: '13px',
-            color: '#1d4ed8',
-          }}
-        >
+        <div role="status" aria-label="Apify status" className="lp-info-banner">
           <p>Apify status: {apifyStatus}</p>
         </div>
       )}
 
       {/* Progress indicator — only shown for non-Apify running runs */}
       {isRunning && progress && !selectedRun?.apify_run_id && (
-        <div
-          role="status"
-          aria-label="Run progress"
-          style={{
-            background: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            borderRadius: '6px',
-            padding: '10px 16px',
-            marginBottom: '16px',
-            fontSize: '13px',
-            color: '#1d4ed8',
-          }}
-        >
+        <div role="status" aria-label="Run progress" className="lp-info-banner">
           <p>
             Queries: {progress.queries_completed} / {progress.queries_total}{' '}
             &nbsp;·&nbsp; {progress.leads_found} leads found
@@ -654,17 +616,17 @@ export default function LeadResults() {
       {loadingLeads && <SkeletonTable />}
 
       {!loadingLeads && leads.length === 0 && selectedRunId != null && !error && (
-        <p style={{ color: '#6b7280', marginTop: '16px' }}>No qualified leads for this run.</p>
+        <p className="lp-help" style={{ marginTop: '16px' }}>No qualified leads for this run.</p>
       )}
 
       {leads.length > 0 && (
         <>
           {/* Summary */}
           <section aria-label="Summary" style={{ margin: '16px 0 8px' }}>
-            <p style={{ fontSize: '13px', color: '#374151' }}>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
               <strong>{leads.length} leads</strong>
               {breakdown.length > 0 && (
-                <> — top signals:{' '}
+                <>, top signals:{' '}
                   {breakdown.map(b => (
                     <span key={b.type} style={{ marginRight: '0.5rem' }}>
                       {b.type.replace(/_/g, ' ')} ({b.count})
@@ -681,77 +643,34 @@ export default function LeadResults() {
             </button>
           </div>
 
-          <table
-            aria-label="Lead results"
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: '14px',
-            }}
-          >
+          <table aria-label="Lead results" className="lp-table">
             <thead>
-              <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+              <tr>
                 {(['Name', 'Location', 'Phone', 'Gap Score', 'Top Signals', 'Services', 'Status'] as const).map(col => (
-                  <th
-                    key={col}
-                    style={{
-                      textAlign: 'left',
-                      padding: '8px 12px',
-                      fontWeight: 600,
-                      fontSize: '12px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      color: '#6b7280',
-                    }}
-                  >
-                    {col}
-                  </th>
+                  <th key={col}>{col}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {leads.map((lead) => (
-                <tr
-                  key={lead.id}
-                  style={{
-                    cursor: 'pointer',
-                    borderBottom: '1px solid #f3f4f6',
-                    background: '#ffffff',
-                    transition: 'background 0.1s',
-                  }}
-                  onClick={() => setSelectedLead(lead)}
-                  onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = '#eff6ff' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = '#ffffff' }}
-                >
-                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>{lead.name}</td>
-                  <td style={{ padding: '10px 12px', color: '#374151' }}>{formatLocation(lead)}</td>
-                  <td style={{ padding: '10px 12px', color: '#374151' }}>{lead.phone ?? '—'}</td>
-                  <td style={{ padding: '10px 12px', fontWeight: 600, color: '#1d4ed8' }}>{lead.gap_score.toFixed(1)}</td>
-                  <td style={{ padding: '10px 12px', color: '#374151' }}>
+                <tr key={lead.id} onClick={() => setSelectedLead(lead)}>
+                  <td className="lp-cell-name">{lead.name}</td>
+                  <td>{formatLocation(lead)}</td>
+                  <td>{lead.phone ?? '—'}</td>
+                  <td className="lp-cell-score">{lead.gap_score.toFixed(1)}</td>
+                  <td>
                     {topSignalLabels(lead).map(label => (
-                      <span
-                        key={label}
-                        style={{
-                          display: 'inline-block',
-                          marginRight: '4px',
-                          marginBottom: '2px',
-                          fontSize: '12px',
-                          background: '#f3f4f6',
-                          color: '#374151',
-                          borderRadius: '4px',
-                          padding: '1px 6px',
-                        }}
-                      >
+                      <span key={label} className="lp-tag">
                         {label}
                       </span>
                     ))}
                   </td>
-                  <td style={{ padding: '10px 12px' }}>
+                  <td>
                     {getServiceBadges(lead.gap_signals).map(service => (
                       <ServiceBadge key={service} service={service} />
                     ))}
                   </td>
-                  <td style={{ padding: '10px 12px' }}>
+                  <td>
                     <StatusBadge status={lead.status} />
                   </td>
                 </tr>

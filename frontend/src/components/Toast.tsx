@@ -30,26 +30,7 @@ function ToastRow({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: stri
   }, [toast.id, onDismiss])
 
   return (
-    <div
-      className={`toast toast--${toast.type}`}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0.75rem 1rem',
-        marginBottom: '0.5rem',
-        borderRadius: '6px',
-        background: toast.type === 'success' ? '#d1fae5'
-          : toast.type === 'error' ? '#fee2e2'
-          : '#dbeafe',
-        color: toast.type === 'success' ? '#065f46'
-          : toast.type === 'error' ? '#991b1b'
-          : '#1e40af',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-        minWidth: '260px',
-        maxWidth: '400px',
-      }}
-    >
+    <div className={`toast toast--${toast.type}`}>
       <span>{toast.message}</span>
       <button
         aria-label="Dismiss toast"

@@ -15,7 +15,7 @@ from app.models import GapSignal, Lead, LeadStatus, Note
 router = APIRouter(prefix="/leads", tags=["leads"])
 
 VALID_STATUSES = {s.value for s in LeadStatus}
-VALID_SORT_FIELDS = {"gap_score", "name", "city"}
+VALID_SORT_FIELDS = {"gap_score", "name", "city", "state"}
 
 
 class GapSignalResponse(BaseModel):
@@ -93,6 +93,68 @@ def _validate_sort(sort: str) -> None:
         )
 
 
+def _apply_filters_and_sort(
+    query,
+    *,
+    signal_types: list[str],
+    statuses: list[str],
+    sort: str,
+):
+    """Shared filter + sort logic for the per-run and all-runs listings."""
+    if signal_types:
+        # Keep only leads that have at least one matching signal type (subquery approach)
+        query = query.filter(
+            Lead.gap_signals.any(GapSignal.signal_type.in_(signal_types))
+        )
+
+    if statuses:
+        query = query.filter(Lead.status.in_(statuses))
+
+    if sort == "name":
+        query = query.order_by(Lead.name.asc())
+    elif sort == "city":
+        query = query.order_by(Lead.city.asc())
+    elif sort == "state":
+        query = query.order_by(Lead.state.asc())
+    else:  # gap_score (default)
+        query = query.order_by(Lead.gap_score.desc())
+
+    return query
+
+
+@router.get("/", response_model=list[LeadResponse])
+def get_all_leads(
+    signal_types: Annotated[list[str], Query()] = None,
+    statuses: Annotated[list[str], Query()] = None,
+    states: Annotated[list[str], Query()] = None,
+    search: str = "",
+    sort: str = "gap_score",
+    db: Session = Depends(get_db),
+):
+    """Consolidated lead listing across ALL runs, with the same filters as the
+    per-run listing plus state filtering and name search."""
+    signal_types = signal_types or []
+    statuses = statuses or []
+    states = states or []
+
+    if statuses:
+        _validate_statuses(statuses)
+    _validate_sort(sort)
+
+    query = db.query(Lead).options(*_lead_options())
+
+    if states:
+        query = query.filter(Lead.state.in_(states))
+
+    if search.strip():
+        query = query.filter(Lead.name.ilike(f"%{search.strip()}%"))
+
+    query = _apply_filters_and_sort(
+        query, signal_types=signal_types, statuses=statuses, sort=sort
+    )
+    return query.all()
+
+
 @router.get("/run/{run_id}", response_model=list[LeadResponse])
 def get_leads_for_run(
     run_id: int,
@@ -109,23 +171,9 @@ def get_leads_for_run(
     _validate_sort(sort)
 
     query = db.query(Lead).options(*_lead_options()).filter(Lead.run_id == run_id)
-
-    if signal_types:
-        # Keep only leads that have at least one matching signal type (subquery approach)
-        query = query.filter(
-            Lead.gap_signals.any(GapSignal.signal_type.in_(signal_types))
-        )
-
-    if statuses:
-        query = query.filter(Lead.status.in_(statuses))
-
-    if sort == "name":
-        query = query.order_by(Lead.name.asc())
-    elif sort == "city":
-        query = query.order_by(Lead.city.asc())
-    else:  # gap_score (default)
-        query = query.order_by(Lead.gap_score.desc())
-
+    query = _apply_filters_and_sort(
+        query, signal_types=signal_types, statuses=statuses, sort=sort
+    )
     return query.all()
 
 

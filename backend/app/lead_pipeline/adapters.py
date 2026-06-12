@@ -91,13 +91,13 @@ class ApifyGoogleMapsAdapter:
     """
     Fetches business records from the Apify ``compass/crawler-google-places`` actor.
 
-    YAML shape::
+    YAML shape (state-wide search; ``city`` is optional and narrows the query
+    when present)::
 
         source: apify_google_maps
         max_results_per_run: 10
         source_config:
           search_term: plumbers
-          city: Austin
           state: TX
 
     The optional ``_apify_client`` parameter allows tests to inject a mock
@@ -140,7 +140,8 @@ class ApifyGoogleMapsAdapter:
         search_term = source_config.get("search_term", "")
         city = source_config.get("city", "")
         state = source_config.get("state", "")
-        query = f"{search_term} in {city} {state}".strip()
+        location = " ".join(part for part in (city, state) if part)
+        query = f"{search_term} in {location}".strip() if location else search_term
 
         actor_input = {
             "searchStringsArray": [query],

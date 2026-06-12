@@ -14,11 +14,6 @@ const SOURCE_OPTIONS: { value: LeadSource; label: string }[] = [
   { value: 'apify_facebook_pages', label: 'Apify — Facebook Pages Scraper' },
 ]
 
-interface SelectedCity {
-  city: string
-  state: string
-}
-
 interface CustomBusinessType {
   name: string
   checked: boolean
@@ -58,15 +53,13 @@ export default function ConfigBuilder() {
   const [customTypes, setCustomTypes] = useState<CustomBusinessType[]>([])
   const [customInput, setCustomInput] = useState('')
 
-  // City selection (Google Places)
-  const [selectedState, setSelectedState] = useState('')
-  const [citySelectValue, setCitySelectValue] = useState('')
-  const [selectedCities, setSelectedCities] = useState<SelectedCity[]>([])
+  // State selection (Google Places) — searches are state-wide
+  const [stateSelectValue, setStateSelectValue] = useState('')
+  const [selectedStates, setSelectedStates] = useState<string[]>([])
 
-  // Apify Google Maps fields
+  // Apify Google Maps fields — state-wide search
   const [apifySearchTerm, setApifySearchTerm] = useState('')
   const [apifyState, setApifyState] = useState('')
-  const [apifyCity, setApifyCity] = useState('')
 
   // Apify Facebook Pages fields
   const [fbKeyword, setFbKeyword] = useState('')
@@ -80,12 +73,9 @@ export default function ConfigBuilder() {
   const [runError, setRunError] = useState<string | null>(null)
   const estimatingRef = useRef(false)
 
-  // Derived city options
-  const stateEntry = stateCities.find(s => s.abbreviation === selectedState)
-  const cityOptions = stateEntry ? stateEntry.cities : []
-
-  const apifyStateEntry = stateCities.find(s => s.abbreviation === apifyState)
-  const apifyCityOptions = apifyStateEntry ? apifyStateEntry.cities : []
+  function stateName(abbreviation: string): string {
+    return stateCities.find(s => s.abbreviation === abbreviation)?.name ?? abbreviation
+  }
 
   // ── Business type (Google Places) ───────────────────────────────────────────
 
@@ -126,32 +116,25 @@ export default function ConfigBuilder() {
     }
   }
 
-  // ── City picker (Google Places) ─────────────────────────────────────────────
+  // ── State picker (Google Places) ─────────────────────────────────────────────
 
   function handleStateChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    setSelectedState(e.target.value)
-    setCitySelectValue('')
+    const abbreviation = e.target.value
+    if (!abbreviation) return
+    setSelectedStates(prev =>
+      prev.includes(abbreviation) ? prev : [...prev, abbreviation]
+    )
+    setStateSelectValue('')
   }
 
-  function handleCityChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const city = e.target.value
-    if (!city || !selectedState) return
-    setSelectedCities(prev => {
-      if (prev.some(c => c.city === city && c.state === selectedState)) return prev
-      return [...prev, { city, state: selectedState }]
-    })
-    setCitySelectValue('')
+  function removeState(abbreviation: string) {
+    setSelectedStates(prev => prev.filter(s => s !== abbreviation))
   }
 
-  // ── Apify Google Maps city picker ────────────────────────────────────────────
+  // ── Apify Google Maps state picker ───────────────────────────────────────────
 
   function handleApifyStateChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setApifyState(e.target.value)
-    setApifyCity('')
-  }
-
-  function handleApifyCityChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    setApifyCity(e.target.value)
   }
 
   // ── Config YAML builders ─────────────────────────────────────────────────────
@@ -167,9 +150,9 @@ export default function ConfigBuilder() {
     const allTypes = [...builtInSelected, ...customSelected, ...extra]
 
     const queries: string[] = []
-    for (const city of selectedCities) {
+    for (const abbreviation of selectedStates) {
       for (const type of allTypes) {
-        queries.push(`${type} in ${city.city} ${city.state}`)
+        queries.push(`${type} in ${stateName(abbreviation)}`)
       }
     }
 
@@ -186,7 +169,6 @@ export default function ConfigBuilder() {
       max_results_per_run: maxResults,
       source_config: {
         search_term: apifySearchTerm,
-        city: apifyCity,
         state: apifyState,
       },
     })
@@ -211,10 +193,10 @@ export default function ConfigBuilder() {
 
   function isReadyToRun(): boolean {
     if (source === 'google_places') {
-      return (selectedTypes.size > 0 || !!customInput.trim()) && selectedCities.length > 0
+      return (selectedTypes.size > 0 || !!customInput.trim()) && selectedStates.length > 0
     }
     if (source === 'apify_google_maps') {
-      return !!apifySearchTerm.trim() && !!apifyCity && !!apifyState
+      return !!apifySearchTerm.trim() && !!apifyState
     }
     if (source === 'apify_facebook_pages') {
       return !!fbKeyword.trim()
@@ -357,17 +339,7 @@ export default function ConfigBuilder() {
                         aria-checked={isSelected}
                         aria-label={type}
                         onClick={() => toggleType(type)}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: '9999px',
-                          border: isSelected ? '1px solid #2563eb' : '1px solid #d1d5db',
-                          background: isSelected ? '#2563eb' : '#ffffff',
-                          color: isSelected ? '#ffffff' : '#374151',
-                          fontSize: '13px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s',
-                        }}
+                        className="lp-chip"
                       >
                         {type}
                       </button>
@@ -391,17 +363,7 @@ export default function ConfigBuilder() {
                         aria-checked={isSelected}
                         aria-label={ct.name}
                         onClick={() => toggleCustomType(ct.name)}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: '9999px',
-                          border: isSelected ? '1px solid #2563eb' : '1px solid #d1d5db',
-                          background: isSelected ? '#2563eb' : '#ffffff',
-                          color: isSelected ? '#ffffff' : '#374151',
-                          fontSize: '13px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s',
-                        }}
+                        className="lp-chip"
                       >
                         {ct.name}
                       </button>
@@ -422,61 +384,42 @@ export default function ConfigBuilder() {
             />
           </div>
 
-          {/* City Picker */}
+          {/* State Picker — searches run state-wide */}
           <div className="lp-card">
-            <h2 className="lp-section-title">Cities</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', maxWidth: '560px', marginBottom: '16px' }}>
-              <div>
-                <label htmlFor="state-select" className="lp-label">Select state</label>
-                <select
-                  id="state-select"
-                  className="lp-select"
-                  value={selectedState}
-                  onChange={handleStateChange}
-                >
-                  <option value="">-- select state --</option>
-                  {stateCities.map(s => (
-                    <option key={s.abbreviation} value={s.abbreviation}>
-                      {s.name} ({s.abbreviation})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="city-select" className="lp-label">Select city</label>
-                <select
-                  id="city-select"
-                  className="lp-select"
-                  value={citySelectValue}
-                  onChange={handleCityChange}
-                >
-                  <option value="">-- select city --</option>
-                  {cityOptions.map(city => (
-                    <option key={city} value={city}>{city}</option>
-                  ))}
-                </select>
-              </div>
+            <h2 className="lp-section-title">States</h2>
+            <div style={{ maxWidth: '272px', marginBottom: '16px' }}>
+              <label htmlFor="state-select" className="lp-label">Select state</label>
+              <select
+                id="state-select"
+                className="lp-select"
+                value={stateSelectValue}
+                onChange={handleStateChange}
+              >
+                <option value="">-- select state --</option>
+                {stateCities.map(s => (
+                  <option key={s.abbreviation} value={s.abbreviation}>
+                    {s.name} ({s.abbreviation})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {selectedCities.length > 0 && (
+            {selectedStates.length > 0 && (
               <ul
-                aria-label="Selected cities"
+                aria-label="Selected states"
                 style={{ listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}
               >
-                {selectedCities.map((c, i) => (
-                  <li
-                    key={`${i}:${c.city}:${c.state}`}
-                    style={{
-                      background: '#eff6ff',
-                      color: '#1d4ed8',
-                      border: '1px solid #bfdbfe',
-                      borderRadius: '9999px',
-                      padding: '2px 10px',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                    }}
-                  >
-                    {c.city}, {c.state}
+                {selectedStates.map(abbreviation => (
+                  <li key={abbreviation} className="lp-pill">
+                    {stateName(abbreviation)}
+                    <button
+                      type="button"
+                      className="lp-pill-remove"
+                      aria-label={`Remove ${stateName(abbreviation)}`}
+                      onClick={() => removeState(abbreviation)}
+                    >
+                      ✕
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -502,37 +445,21 @@ export default function ConfigBuilder() {
               onChange={e => setApifySearchTerm(e.target.value)}
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', maxWidth: '560px' }}>
-            <div>
-              <label htmlFor="apify-state-select" className="lp-label">Select state</label>
-              <select
-                id="apify-state-select"
-                className="lp-select"
-                value={apifyState}
-                onChange={handleApifyStateChange}
-              >
-                <option value="">-- select state --</option>
-                {stateCities.map(s => (
-                  <option key={s.abbreviation} value={s.abbreviation}>
-                    {s.name} ({s.abbreviation})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="apify-city-select" className="lp-label">Select city</label>
-              <select
-                id="apify-city-select"
-                className="lp-select"
-                value={apifyCity}
-                onChange={handleApifyCityChange}
-              >
-                <option value="">-- select city --</option>
-                {apifyCityOptions.map(city => (
-                  <option key={city} value={city}>{city}</option>
-                ))}
-              </select>
-            </div>
+          <div style={{ maxWidth: '272px' }}>
+            <label htmlFor="apify-state-select" className="lp-label">Select state</label>
+            <select
+              id="apify-state-select"
+              className="lp-select"
+              value={apifyState}
+              onChange={handleApifyStateChange}
+            >
+              <option value="">-- select state --</option>
+              {stateCities.map(s => (
+                <option key={s.abbreviation} value={s.abbreviation}>
+                  {s.name} ({s.abbreviation})
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       )}
@@ -601,7 +528,7 @@ export default function ConfigBuilder() {
 
       {step.kind === 'estimating' && (
         <section aria-label="Estimating cost">
-          <p style={{ color: '#6b7280', marginBottom: '12px' }}>Estimating&hellip;</p>
+          <p className="lp-help" style={{ marginBottom: '12px' }}>Estimating&hellip;</p>
           <button className="btn btn-secondary" onClick={handleCancel}>Cancel</button>
         </section>
       )}
@@ -613,25 +540,21 @@ export default function ConfigBuilder() {
 
             {!isApifySource && (
               <>
-                <p style={{ marginBottom: '4px', color: '#374151' }}>{step.estimate.query_count} queries</p>
-                <p style={{ marginBottom: '4px', color: '#374151' }}>{step.estimate.estimated_results} results</p>
-                <p style={{ marginBottom: '16px', color: '#374151' }}>${step.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
+                <p style={{ marginBottom: '4px', color: 'var(--color-text-secondary)' }}>{step.estimate.query_count} queries</p>
+                <p style={{ marginBottom: '4px', color: 'var(--color-text-secondary)' }}>{step.estimate.estimated_results} results</p>
+                <p style={{ marginBottom: '16px', color: 'var(--color-text-secondary)' }}>${step.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
               </>
             )}
 
             {isApifySource && remainingAfterRun != null && (
               <>
-                <p style={{ marginBottom: '16px', color: '#374151' }}>
+                <p style={{ marginBottom: '16px', color: 'var(--color-text-secondary)' }}>
                   {step.estimate.estimated_results} results
                   {' · '}${step.estimate.estimated_cost_usd.toFixed(2)} estimated
                   {' · '}${Math.max(0, remainingAfterRun).toFixed(2)} remaining after this run
                 </p>
                 {remainingAfterRun < 0 && (
-                  <p
-                    role="alert"
-                    aria-label="Budget warning"
-                    style={{ color: '#d97706', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '6px', padding: '8px 12px', marginBottom: '12px', fontSize: '13px' }}
-                  >
+                  <p role="alert" aria-label="Budget warning" className="lp-warning-banner">
                     Warning: this run exceeds your remaining Apify monthly budget.
                   </p>
                 )}
@@ -639,7 +562,7 @@ export default function ConfigBuilder() {
             )}
 
             {isApifySource && remainingAfterRun == null && (
-              <p style={{ marginBottom: '16px', color: '#374151' }}>
+              <p style={{ marginBottom: '16px', color: 'var(--color-text-secondary)' }}>
                 {step.estimate.estimated_results} results
                 {' · '}${step.estimate.estimated_cost_usd.toFixed(2)} estimated
               </p>

@@ -14,7 +14,7 @@ interface GapSignal {
 export interface Lead {
   id: number
   run_id: number
-  place_id: string
+  external_id: string
   name: string
   phone: string | null
   address: string | null
@@ -94,42 +94,17 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
       role="dialog"
       aria-label="Lead detail"
       aria-modal="true"
-      style={{
-        position: 'fixed',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: '440px',
-        background: 'var(--color-surface)',
-        boxShadow: '-4px 0 24px rgba(0,0,0,0.12)',
-        overflowY: 'auto',
-        padding: '24px',
-        zIndex: 1000,
-      }}
+      className="lp-panel"
     >
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.3 }}>
           {lead.name}
         </h2>
         <button
           aria-label="Close detail panel"
           onClick={onClose}
-          style={{
-            background: 'none',
-            border: '1px solid #e5e7eb',
-            borderRadius: '6px',
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            fontSize: '14px',
-            color: '#6b7280',
-            flexShrink: 0,
-            marginLeft: '12px',
-          }}
+          className="lp-panel-close"
         >
           ✕
         </button>
@@ -138,23 +113,23 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
       {/* Contact info */}
       <section aria-label="Contact information" style={{ marginBottom: '20px' }}>
         {lead.address && (
-          <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>
+          <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
             {lead.address}
           </p>
         )}
         {lead.phone && (
-          <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>
+          <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
             {lead.phone}
           </p>
         )}
         {lead.email && (
-          <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>
+          <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
             {lead.email}
           </p>
         )}
-        <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#374151' }}>
+        <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
           Gap Score:{' '}
-          <strong style={{ color: '#1d4ed8', fontWeight: 700 }}>
+          <strong style={{ color: 'var(--color-accent-text)', fontWeight: 700 }}>
             {lead.gap_score.toFixed(1)}
           </strong>
         </p>
@@ -167,18 +142,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
             href={lead.website_url}
             target="_blank"
             rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: '13px',
-              color: '#2563eb',
-              textDecoration: 'underline',
-              textDecorationColor: 'transparent',
-              transition: 'text-decoration-color 0.15s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = '#2563eb' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = 'transparent' }}
+            className="lp-link"
           >
             Visit website ↗
           </a>
@@ -188,18 +152,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
             href={lead.maps_url}
             target="_blank"
             rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: '13px',
-              color: '#2563eb',
-              textDecoration: 'underline',
-              textDecorationColor: 'transparent',
-              transition: 'text-decoration-color 0.15s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = '#2563eb' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.textDecorationColor = 'transparent' }}
+            className="lp-link"
           >
             Google Maps ↗
           </a>
@@ -207,44 +160,30 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
       </section>
 
       {/* Divider */}
-      <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', marginBottom: '20px' }} />
+      <hr className="lp-divider" />
 
       {/* Gap signals */}
       <section aria-label="Gap signals" style={{ marginBottom: '20px' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280' }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-muted)' }}>
           Gap Signals
         </h3>
         {lead.gap_signals.length === 0 ? (
-          <p style={{ color: '#9ca3af', fontSize: '14px' }}>No signals detected.</p>
+          <p style={{ color: 'var(--color-muted)', fontSize: '14px' }}>No signals detected.</p>
         ) : (
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {lead.gap_signals.map(signal => (
               <li
                 key={signal.id}
-                style={{
-                  background: signal.is_hard ? '#fffbeb' : '#f9fafb',
-                  border: `1px solid ${signal.is_hard ? '#fde68a' : '#e5e7eb'}`,
-                  borderRadius: '6px',
-                  padding: '10px 12px',
-                }}
+                className={signal.is_hard ? 'lp-signal lp-signal--hard' : 'lp-signal'}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: signal.sales_copy ? '6px' : 0 }}>
-                  <span style={{ fontWeight: signal.is_hard ? 'bold' : 'normal', fontSize: '14px', color: '#111827' }}>
+                  <span style={{ fontWeight: signal.is_hard ? 'bold' : 'normal', fontSize: '14px', color: 'var(--color-text)' }}>
                     {signal.description}
                   </span>
                   {signal.service && (
                     <span
                       aria-label={`Service: ${signal.service}`}
-                      style={{
-                        display: 'inline-block',
-                        fontSize: '0.75rem',
-                        fontWeight: 'normal',
-                        padding: '0.125rem 0.5rem',
-                        borderRadius: '9999px',
-                        background: signal.is_hard ? '#fde68a' : '#e0e7ff',
-                        color: signal.is_hard ? '#92400e' : '#3730a3',
-                        whiteSpace: 'nowrap',
-                      }}
+                      className="lp-signal-service"
                     >
                       {signal.service}
                     </span>
@@ -255,7 +194,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
                     style={{
                       margin: 0,
                       fontSize: '0.875rem',
-                      color: '#374151',
+                      color: 'var(--color-text-secondary)',
                       lineHeight: 1.5,
                     }}
                   >
@@ -269,7 +208,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
       </section>
 
       {/* Divider */}
-      <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', marginBottom: '20px' }} />
+      <hr className="lp-divider" />
 
       {/* Status */}
       <section aria-label="Status" style={{ marginBottom: '20px' }}>
