@@ -157,6 +157,23 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
             Google Maps ↗
           </a>
         )}
+        {lead.website_url && (() => {
+          try {
+            const domain = new URL(lead.website_url).hostname.replace(/^www\./, '')
+            return (
+              <a
+                href={`https://www.seoptimer.com/${domain}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="lp-link"
+              >
+                SEOptimer ↗
+              </a>
+            )
+          } catch {
+            return null
+          }
+        })()}
       </section>
 
       {/* Divider */}
