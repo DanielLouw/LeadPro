@@ -264,3 +264,163 @@ def test_settings_seed_is_idempotent(tmp_path, monkeypatch):
     engine.dispose()
 
     assert len(rows) == 1
+
+
+# ---------------------------------------------------------------------------
+# Issue #15: SearchSlot migration
+# ---------------------------------------------------------------------------
+
+def test_upgrade_head_creates_search_slots_table(tmp_path):
+    """search_slots table exists after upgrade head."""
+    db_path = tmp_path / "test.db"
+    url = f"sqlite:///{db_path}"
+    _run_upgrade(url)
+
+    engine = create_engine(url)
+    tables = sa_inspect(engine).get_table_names()
+    engine.dispose()
+
+    assert "search_slots" in tables
+
+
+def test_search_slots_has_required_columns(tmp_path):
+    """search_slots table has all required columns with correct nullability."""
+    db_path = tmp_path / "test.db"
+    url = f"sqlite:///{db_path}"
+    _run_upgrade(url)
+
+    engine = create_engine(url)
+    inspector = sa_inspect(engine)
+    cols = {c["name"]: c for c in inspector.get_columns("search_slots")}
+    engine.dispose()
+
+    # Primary key
+    assert "id" in cols
+
+    # Non-nullable identity columns
+    for col_name in ("state", "county", "industry", "search_term"):
+        assert col_name in cols, f"Missing column: {col_name}"
+        assert not cols[col_name]["nullable"], f"{col_name} should be NOT NULL"
+
+    # search_count: non-nullable with DB-level default of 0
+    assert "search_count" in cols
+    assert not cols["search_count"]["nullable"]
+
+    # last_run_id: nullable FK
+    assert "last_run_id" in cols
+    assert cols["last_run_id"]["nullable"]
+
+
+def test_search_slots_unique_constraint_enforced(tmp_path):
+    """DB raises IntegrityError on duplicate (state, county, industry, search_term)."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import IntegrityError
+
+    db_path = tmp_path / "test.db"
+    url = f"sqlite:///{db_path}"
+    _run_upgrade(url)
+
+    engine = create_engine(url)
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO search_slots (state, county, industry, search_term, search_count) "
+                "VALUES ('TX', 'Harris', 'plumber', 'plumber Harris TX', 0)"
+            )
+        )
+        conn.commit()
+
+        # Use a savepoint so the IntegrityError doesn't poison the outer connection
+        with pytest.raises(IntegrityError):
+            with conn.begin_nested():
+                conn.execute(
+                    text(
+                        "INSERT INTO search_slots (state, county, industry, search_term, search_count) "
+                        "VALUES ('TX', 'Harris', 'plumber', 'plumber Harris TX', 0)"
+                    )
+                )
+    engine.dispose()
+
+
+def test_search_slots_search_count_defaults_to_zero(tmp_path):
+    """search_count column has a DB-level server default of 0, applied on INSERT."""
+    from sqlalchemy import text
+
+    db_path = tmp_path / "test.db"
+    url = f"sqlite:///{db_path}"
+    _run_upgrade(url)
+
+    engine = create_engine(url)
+
+    # Verify server_default is declared in schema metadata
+    inspector = sa_inspect(engine)
+    cols = {c["name"]: c for c in inspector.get_columns("search_slots")}
+    default = cols["search_count"].get("default")
+    assert default is not None, "search_count must have a server default"
+    assert str(default).strip("'\" ") == "0"
+
+    # Verify the server_default is actually applied at INSERT time
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO search_slots (state, county, industry, search_term) "
+                "VALUES ('TX', 'Harris', 'plumber', 'plumber Harris TX')"
+            )
+        )
+        conn.commit()
+        count = conn.execute(
+            text("SELECT search_count FROM search_slots WHERE state = 'TX'")
+        ).scalar()
+
+    engine.dispose()
+
+    assert count == 0
+
+
+def test_search_slots_last_run_id_fk_on_delete_set_null(tmp_path):
+    """Deleting a run sets last_run_id to NULL rather than cascading delete."""
+    from sqlalchemy import text
+
+    db_path = tmp_path / "test.db"
+    url = f"sqlite:///{db_path}"
+    _run_upgrade(url)
+
+    engine = create_engine(url)
+    with engine.connect() as conn:
+        # SQLite foreign key enforcement must be enabled per connection
+        conn.execute(text("PRAGMA foreign_keys = ON"))
+
+        # Insert a run
+        conn.execute(
+            text(
+                "INSERT INTO runs (created_at, config_yaml, status, total_leads, "
+                "queries_completed, queries_total, source) VALUES "
+                "('2026-01-01', 'queries: []', 'completed', 0, 0, 0, 'google_places')"
+            )
+        )
+        conn.commit()
+
+        run_id = conn.execute(text("SELECT last_insert_rowid()")).scalar()
+
+        # Insert a search slot that references this run
+        conn.execute(
+            text(
+                "INSERT INTO search_slots (state, county, industry, search_term, search_count, last_run_id) "
+                "VALUES ('TX', 'Harris', 'plumber', 'plumber Harris TX', 1, :run_id)"
+            ),
+            {"run_id": run_id},
+        )
+        conn.commit()
+
+        # Delete the run
+        conn.execute(text("DELETE FROM runs WHERE id = :run_id"), {"run_id": run_id})
+        conn.commit()
+
+        # last_run_id should now be NULL, not a dangling reference
+        last_run_id = conn.execute(
+            text("SELECT last_run_id FROM search_slots WHERE state = 'TX'")
+        ).scalar()
+
+    engine.dispose()
+
+    assert last_run_id is None
