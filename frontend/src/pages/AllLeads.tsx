@@ -3,6 +3,7 @@ import LeadDetailPanel, { type Lead } from './LeadDetailPanel'
 import SkeletonTable from '../components/SkeletonTable'
 import Spinner from '../components/Spinner'
 import ToastContainer, { makeToast, type ToastItem } from '../components/Toast'
+import { apiFetch } from '../utils/apiFetch'
 import ServiceBadge, { getServiceBadges } from '../components/ServiceBadge'
 import StatusBadge from '../components/StatusBadge'
 import { ALL_STATUSES, formatLocation, topSignalLabels } from '../utils/leadDisplay'
@@ -86,7 +87,7 @@ export default function AllLeads() {
     setError(null)
 
     const states = selectedState ? [selectedState] : []
-    fetch(buildAllLeadsUrl(selectedSignalTypes, selectedStatuses, states, debouncedSearch, sort))
+    apiFetch(buildAllLeadsUrl(selectedSignalTypes, selectedStatuses, states, debouncedSearch, sort))
       .then(r => {
         if (!r.ok) throw new Error(`Failed to load leads: ${r.status}`)
         return r.json() as Promise<Lead[]>

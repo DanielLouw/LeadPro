@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import Spinner from '../components/Spinner'
 import type { ToastType } from '../components/Toast'
+import { apiFetch } from '../utils/apiFetch'
 
 interface GapSignal {
   id: number
@@ -49,7 +50,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
   async function handleStatusChange(newStatus: string) {
     setSavingStatus(true)
     try {
-      const resp = await fetch(`/api/leads/${lead.id}/status`, {
+      const resp = await apiFetch(`/api/leads/${lead.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -71,7 +72,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated, onToast 
     if (savingNotes) return
     setSavingNotes(true)
     try {
-      const resp = await fetch(`/api/leads/${lead.id}/notes`, {
+      const resp = await apiFetch(`/api/leads/${lead.id}/notes`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: notesValue }),

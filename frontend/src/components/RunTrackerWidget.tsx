@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { apiFetch } from '../utils/apiFetch'
 
 const MONTHLY_SPEND_URL = '/api/runs/monthly-spend'
 const POLL_INTERVAL_MS = 30_000
@@ -99,7 +100,7 @@ export default function RunTrackerWidget({ refreshTick = 0 }: RunTrackerWidgetPr
 
     async function fetchSpend() {
       try {
-        const res = await fetch(MONTHLY_SPEND_URL)
+        const res = await apiFetch(MONTHLY_SPEND_URL)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = (await res.json()) as MonthlySpend
         if (!cancelled) {

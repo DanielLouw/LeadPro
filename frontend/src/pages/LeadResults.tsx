@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { apiFetch } from '../utils/apiFetch'
 import LeadDetailPanel, { type Lead } from './LeadDetailPanel'
 import SkeletonTable from '../components/SkeletonTable'
 import Spinner from '../components/Spinner'
@@ -146,7 +147,7 @@ export default function LeadResults() {
   useEffect(() => {
     setLoadingRuns(true)
     setError(null)
-    fetch('/api/runs/')
+    apiFetch('/api/runs/')
       .then(r => {
         if (!r.ok) throw new Error(`Failed to load runs: ${r.status}`)
         return r.json()
@@ -175,7 +176,7 @@ export default function LeadResults() {
       setLoadingLeads(true)
       setError(null)
       const url = buildLeadsUrl(runId, selectedSignalTypes, selectedStatuses, sort)
-      fetch(url)
+      apiFetch(url)
         .then(r => {
           if (!r.ok) throw new Error(`Failed to load leads: ${r.status}`)
           return r.json()
@@ -229,7 +230,7 @@ export default function LeadResults() {
       setApifyStatus(selectedRun.apify_status ?? 'running')
 
       const poll = () => {
-        fetch(`/api/runs/${selectedRunId}`)
+        apiFetch(`/api/runs/${selectedRunId}`)
           .then(r => r.ok ? r.json() : null)
           .then((data: Run | null) => {
             if (!data) return
@@ -254,7 +255,7 @@ export default function LeadResults() {
       setApifyStatus(null)
 
       const poll = () => {
-        fetch(`/api/runs/${selectedRunId}/progress`)
+        apiFetch(`/api/runs/${selectedRunId}/progress`)
           .then(r => r.ok ? r.json() : null)
           .then((data: RunProgress | null) => {
             if (!data) return
@@ -328,7 +329,7 @@ export default function LeadResults() {
     setNewRunStep({ kind: 'estimating', configYaml })
     setNewRunError(null)
     try {
-      const resp = await fetch('/api/runs/estimate', {
+      const resp = await apiFetch('/api/runs/estimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config_yaml: configYaml }),
@@ -356,7 +357,7 @@ export default function LeadResults() {
     setNewRunStep({ kind: 'submitting', configYaml, estimate })
     setNewRunError(null)
     try {
-      const resp = await fetch('/api/runs/', {
+      const resp = await apiFetch('/api/runs/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config_yaml: configYaml }),
@@ -395,7 +396,7 @@ export default function LeadResults() {
     if (selectedRunId == null) return
     setExportingCsv(true)
     const url = `/api/runs/${selectedRunId}/leads/export`
-    fetch(url)
+    apiFetch(url)
       .then(r => {
         if (!r.ok) throw new Error(`Export failed: ${r.status}`)
         return r.blob()
