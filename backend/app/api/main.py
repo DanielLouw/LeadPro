@@ -50,15 +50,10 @@ def on_startup() -> None:
         force=True,
     )
 
-    from alembic.config import Config
-    from alembic import command
+    # Migrations are run via Railway Release Command before the container starts,
+    # not here — running them on startup causes crash loops when a migration fails.
     from sqlalchemy import text
-
     from app.database import engine as _engine
-
-    cfg = Config(str(_BACKEND_DIR / "alembic.ini"))
-    cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-    command.upgrade(cfg, "head")
 
     # Seed the single settings row if absent
     with _engine.connect() as conn:
