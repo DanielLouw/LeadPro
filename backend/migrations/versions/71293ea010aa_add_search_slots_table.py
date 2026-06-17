@@ -33,8 +33,14 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('state', 'county', 'industry', 'search_term', name='search_slots_unique')
     )
-    with op.batch_alter_table('leads', schema=None) as batch_op:
-        batch_op.create_unique_constraint('leads_run_external_unique', ['run_id', 'external_id'])
+    # Guard against partial previous runs that may have already applied this constraint
+    conn = op.get_bind()
+    exists = conn.execute(sa.text(
+        "SELECT 1 FROM pg_constraint WHERE conname = 'leads_run_external_unique'"
+    )).fetchone()
+    if not exists:
+        with op.batch_alter_table('leads', schema=None) as batch_op:
+            batch_op.create_unique_constraint('leads_run_external_unique', ['run_id', 'external_id'])
 
     # ### end Alembic commands ###
 
