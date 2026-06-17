@@ -42,8 +42,8 @@ interface MonthlySpendResponse {
 type Step =
   | { kind: 'editing' }
   | { kind: 'estimating' }
-  | { kind: 'confirm'; estimate: RunEstimate; configYaml: string; apifySpend?: MonthlySpend; typeCount: number }
-  | { kind: 'submitting'; estimate: RunEstimate; configYaml: string; apifySpend?: MonthlySpend; typeCount: number }
+  | { kind: 'confirm'; estimate: RunEstimate; configYamls: string[]; industryLabels: string[]; apifySpend?: MonthlySpend; typeCount: number }
+  | { kind: 'submitting'; estimate: RunEstimate; configYamls: string[]; industryLabels: string[]; apifySpend?: MonthlySpend; typeCount: number }
 
 export default function ConfigBuilder() {
   const navigate = useNavigate()
@@ -224,6 +224,13 @@ export default function ConfigBuilder() {
     // Use first YAML for estimate call (all types have same cost: slots_per_run × max_results)
     const firstConfigYaml = configYamls[0]
     const typeCount = configYamls.length
+    // For Google Places cycling: industry labels correspond 1:1 with configYamls
+    const industryLabels = source === 'google_places'
+      ? getAllSelectedTypes(pendingType)
+      : []
+    if (source === 'google_places' && industryLabels.length !== configYamls.length) {
+      console.error('industryLabels/configYamls length mismatch', { industryLabels, configYamls })
+    }
 
     setStep({ kind: 'estimating' })
 
@@ -251,7 +258,7 @@ export default function ConfigBuilder() {
         apifySpend = spendData.apify
       }
 
-      setStep({ kind: 'confirm', estimate, configYaml: firstConfigYaml, apifySpend, typeCount })
+      setStep({ kind: 'confirm', estimate, configYamls, industryLabels, apifySpend, typeCount })
     } catch (e: unknown) {
       setRunError(e instanceof Error ? e.message : String(e))
       setStep({ kind: 'editing' })
@@ -262,26 +269,49 @@ export default function ConfigBuilder() {
 
   async function handleConfirmRun() {
     if (step.kind !== 'confirm') return
-    const { estimate, configYaml, apifySpend, typeCount } = step
-    setStep({ kind: 'submitting', estimate, configYaml, apifySpend, typeCount })
+    const { estimate, configYamls, industryLabels, apifySpend, typeCount } = step
+    setStep({ kind: 'submitting', estimate, configYamls, industryLabels, apifySpend, typeCount })
     setRunError(null)
 
-    try {
-      // Submit first YAML only — multi-run submission is issue #20
-      const resp = await apiFetch('/api/runs/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config_yaml: configYaml }),
-      })
-      if (!resp.ok) {
-        const detail = await resp.json().catch(() => ({ detail: 'Unknown error' }))
-        throw new Error(detail.detail ?? `Failed to start run: ${resp.status}`)
-      }
-      const newRun = await resp.json()
-      navigate('/leads', { state: { runId: newRun.id } })
-    } catch (e: unknown) {
-      setRunError(e instanceof Error ? e.message : String(e))
-      setStep({ kind: 'confirm', estimate, configYaml, apifySpend, typeCount })
+    // Fire one POST /api/runs/ per config YAML in parallel
+    const results = await Promise.allSettled(
+      configYamls.map(configYaml =>
+        apiFetch('/api/runs/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ config_yaml: configYaml }),
+        }).then(async resp => {
+          if (!resp.ok) {
+            const detail = await resp.json().catch(() => ({ detail: 'Unknown error' }))
+            throw new Error(detail.detail ?? `Failed to start run: ${resp.status}`)
+          }
+          return resp.json()
+        })
+      )
+    )
+
+    const succeeded = results.filter(r => r.status === 'fulfilled') as PromiseFulfilledResult<{ id: number }>[]
+    const failed = results.filter(r => r.status === 'rejected')
+
+    // Log warnings for any partial failures
+    for (const f of failed) {
+      console.warn('Run submission failed:', (f as PromiseRejectedResult).reason)
+    }
+
+    if (succeeded.length === 0) {
+      // All failed — show error and return to confirm step
+      const firstError = (failed[0] as PromiseRejectedResult).reason
+      setRunError(firstError instanceof Error ? firstError.message : String(firstError))
+      setStep({ kind: 'confirm', estimate, configYamls, industryLabels, apifySpend, typeCount })
+      return
+    }
+
+    if (typeCount === 1) {
+      // Single run: navigate with runId
+      navigate('/leads', { state: { runId: succeeded[0].value.id } })
+    } else {
+      // Multiple runs: navigate to lead list without a specific runId
+      navigate('/leads')
     }
   }
 
@@ -295,11 +325,11 @@ export default function ConfigBuilder() {
   const isApifySource = source !== 'google_places'
 
   // Pre-compute budget info for the confirm step (only relevant for Apify sources)
-  const confirmApifySpend =
-    (step.kind === 'confirm' || step.kind === 'submitting') ? step.apifySpend : undefined
+  const confirmStep = step.kind === 'confirm' || step.kind === 'submitting' ? step : null
+  const confirmApifySpend = confirmStep?.apifySpend
   const remainingAfterRun =
-    confirmApifySpend != null
-      ? confirmApifySpend.remaining_usd - ((step.kind === 'confirm' || step.kind === 'submitting') ? step.estimate.estimated_cost_usd : 0)
+    confirmApifySpend != null && confirmStep != null
+      ? confirmApifySpend.remaining_usd - confirmStep.estimate.estimated_cost_usd
       : null
 
   return (
@@ -521,19 +551,23 @@ export default function ConfigBuilder() {
             <h2 className="lp-section-title" style={{ marginBottom: '12px' }}>Estimated Cost</h2>
 
             {/* Google Places cycling confirm display */}
-            {!isApifySource && (
+            {!isApifySource && step.typeCount === 1 && (
+              <p style={{ marginBottom: '16px', color: 'var(--color-text-secondary)' }}>
+                {CYCLING_SLOTS_PER_RUN} slots in {stateName(selectedState)}
+                {' · '}~{step.estimate.estimated_results} results
+                {' · '}~${step.estimate.estimated_cost_usd.toFixed(2)} estimated
+              </p>
+            )}
+            {!isApifySource && step.typeCount > 1 && (
               <>
-                <p style={{ marginBottom: step.typeCount > 1 ? '4px' : '16px', color: 'var(--color-text-secondary)' }}>
-                  {CYCLING_SLOTS_PER_RUN} slots in {stateName(selectedState)}
-                  {' · '}~{step.estimate.estimated_results} results
-                  {' · '}~${step.estimate.estimated_cost_usd.toFixed(2)} estimated
-                </p>
-                {step.typeCount > 1 && (
-                  <p style={{ marginBottom: '16px', color: 'var(--color-text-secondary)' }}>
-                    {step.typeCount} types selected
-                    {' · '}~${(step.typeCount * step.estimate.estimated_cost_usd).toFixed(2)} total estimated
+                {step.industryLabels.map(label => (
+                  <p key={label} style={{ marginBottom: '4px', color: 'var(--color-text-secondary)' }}>
+                    {label} — {CYCLING_SLOTS_PER_RUN} slots · ~{step.estimate.estimated_results} results · ~${step.estimate.estimated_cost_usd.toFixed(2)}
                   </p>
-                )}
+                ))}
+                <p style={{ marginBottom: '16px', color: 'var(--color-text-secondary)' }}>
+                  {step.typeCount} runs · ~${(step.typeCount * step.estimate.estimated_cost_usd).toFixed(2)} estimated
+                </p>
               </>
             )}
 

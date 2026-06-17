@@ -401,7 +401,7 @@ describe('ConfigBuilder — cycling YAML shape (issue #19)', () => {
     expect(screen.getByText(/~\$0\.24/i)).toBeInTheDocument()
   })
 
-  it('confirm step for multiple types shows combined total line', async () => {
+  it('confirm step for multiple types shows per-type breakdown and combined total', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
 
@@ -412,11 +412,235 @@ describe('ConfigBuilder — cycling YAML shape (issue #19)', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 
-    // Combined total: 3 types × $0.24 = $0.72
+    // Per-type breakdown lines
     await waitFor(() =>
-      expect(screen.getByText(/3 types selected/i)).toBeInTheDocument()
+      expect(screen.getByText(/plumbers.*3 slots/i)).toBeInTheDocument()
     )
+    expect(screen.getByText(/hvac companies.*3 slots/i)).toBeInTheDocument()
+    expect(screen.getByText(/electricians.*3 slots/i)).toBeInTheDocument()
+    // Combined total: 3 runs · ~$0.72 estimated
+    expect(screen.getByText(/3 runs/i)).toBeInTheDocument()
     expect(screen.getByText(/\$0\.72/i)).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Issue #20: Multi-run submission for multi-type cycling config
+// ---------------------------------------------------------------------------
+
+describe('ConfigBuilder — multi-run submission (issue #20)', () => {
+  const mockEstimate = { query_count: 3, estimated_results: 150, estimated_cost_usd: 0.24 }
+
+  function makeFetchMock(failFirst = false) {
+    let runsCallCount = 0
+    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/runs/estimate') && init?.method === 'POST') {
+        return new Response(JSON.stringify(mockEstimate), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('/runs/') && !url.includes('/estimate') && init?.method === 'POST') {
+        runsCallCount++
+        if (failFirst && runsCallCount === 1) {
+          return new Response(JSON.stringify({ detail: 'Server error' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        const body = JSON.parse(init?.body as string)
+        const yamlStr: string = body.config_yaml
+        // Extract industry from YAML to produce distinct run ids
+        const match = yamlStr.match(/industry:\s*(\S+)/)
+        const industry = match ? match[1] : 'unknown'
+        return new Response(
+          JSON.stringify({ id: industry === 'plumbers' ? 1 : 2, status: 'pending', total_leads: 0, config_yaml: yamlStr, error_message: null }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+  }
+
+  async function setupTwoTypes(user: ReturnType<typeof userEvent.setup>) {
+    renderConfigBuilder()
+    await user.click(screen.getByRole('checkbox', { name: /plumbers/i }))
+    await user.click(screen.getByRole('checkbox', { name: /electricians/i }))
+    await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
+  }
+
+  beforeEach(() => {
+    mockNavigate.mockClear()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // Test 1 — 2 types → exactly 2 POST /api/runs/ calls
+  it('selecting 2 business types and confirming fires exactly 2 POST /runs/ requests', async () => {
+    const fetchMock = makeFetchMock()
+    vi.spyOn(globalThis, 'fetch').mockImplementation(fetchMock)
+
+    const user = userEvent.setup()
+    await setupTwoTypes(user)
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /confirm & start run/i })).toBeInTheDocument()
+    )
+    await user.click(screen.getByRole('button', { name: /confirm & start run/i }))
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls
+      const runsCalls = calls.filter((args: unknown[]) => {
+        const url = args[0]
+        const init = args[1] as RequestInit | undefined
+        return (
+          typeof url === 'string' &&
+          url.includes('/api/runs/') &&
+          !url.includes('/estimate') &&
+          init?.method === 'POST'
+        )
+      })
+      expect(runsCalls).toHaveLength(2)
+    })
+  })
+
+  // Test 2 — each request body has the correct industry
+  it('each POST /runs/ request body contains the correct industry for its type', async () => {
+    const fetchMock = makeFetchMock()
+    vi.spyOn(globalThis, 'fetch').mockImplementation(fetchMock)
+
+    const user = userEvent.setup()
+    await setupTwoTypes(user)
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /confirm & start run/i })).toBeInTheDocument()
+    )
+    await user.click(screen.getByRole('button', { name: /confirm & start run/i }))
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls
+      const runsCalls = calls.filter((args: unknown[]) => {
+        const url = args[0]
+        const init = args[1] as RequestInit | undefined
+        return (
+          typeof url === 'string' &&
+          url.includes('/api/runs/') &&
+          !url.includes('/estimate') &&
+          init?.method === 'POST'
+        )
+      })
+      expect(runsCalls).toHaveLength(2)
+      const bodies = runsCalls.map((args: unknown[]) => {
+        const init = args[1] as RequestInit
+        return JSON.parse(init.body as string).config_yaml as string
+      })
+      expect(bodies.some(y => y.includes('industry: plumbers'))).toBe(true)
+      expect(bodies.some(y => y.includes('industry: electricians'))).toBe(true)
+    })
+  })
+
+  // Test 3 — confirm step shows per-type breakdown when N > 1
+  it('confirm step shows per-type breakdown line for each type when N > 1', async () => {
+    const fetchMock = makeFetchMock()
+    vi.spyOn(globalThis, 'fetch').mockImplementation(fetchMock)
+
+    const user = userEvent.setup()
+    await setupTwoTypes(user)
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/plumbers.*3 slots/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText(/electricians.*3 slots/i)).toBeInTheDocument()
+  })
+
+  // Test 4 — confirm step shows combined total line when N > 1
+  it('confirm step shows combined total line when N > 1', async () => {
+    const fetchMock = makeFetchMock()
+    vi.spyOn(globalThis, 'fetch').mockImplementation(fetchMock)
+
+    const user = userEvent.setup()
+    await setupTwoTypes(user)
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/2 runs/i)).toBeInTheDocument()
+    )
+    // Total cost: 2 × $0.24 = $0.48
+    expect(screen.getByText(/\$0\.48/i)).toBeInTheDocument()
+  })
+
+  // Test 5 — single-type confirm step unchanged (no breakdown)
+  it('single-type confirm step shows no per-type breakdown', async () => {
+    const fetchMock = makeFetchMock()
+    vi.spyOn(globalThis, 'fetch').mockImplementation(fetchMock)
+
+    const user = userEvent.setup()
+    renderConfigBuilder()
+    await user.click(screen.getByRole('checkbox', { name: /plumbers/i }))
+    await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/3 slots in Texas/i)).toBeInTheDocument()
+    )
+    // No per-type breakdown or total runs line for single type
+    expect(screen.queryByText(/1 run/i)).not.toBeInTheDocument()
+    // The old summary line is present, not a per-type breakdown
+    expect(screen.queryByText(/plumbers.*3 slots/i)).not.toBeInTheDocument()
+  })
+
+  // Test 6 — after multi-run, navigate to /leads without runId
+  it('after multi-run submission, navigates to /leads without a specific runId', async () => {
+    const fetchMock = makeFetchMock()
+    vi.spyOn(globalThis, 'fetch').mockImplementation(fetchMock)
+
+    const user = userEvent.setup()
+    await setupTwoTypes(user)
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /confirm & start run/i })).toBeInTheDocument()
+    )
+    await user.click(screen.getByRole('button', { name: /confirm & start run/i }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/leads')
+    })
+    // Must NOT have been called with a state containing runId
+    const calls = mockNavigate.mock.calls
+    const withRunId = calls.some((args: unknown[]) => {
+      const opts = args[1] as { state?: { runId?: number } } | undefined
+      return opts?.state?.runId != null
+    })
+    expect(withRunId).toBe(false)
+  })
+
+  // Test 7 — a single failed POST doesn't prevent navigation if at least one succeeded
+  it('a single failed POST does not prevent navigation when at least one succeeds', async () => {
+    const fetchMock = makeFetchMock(true /* failFirst */)
+    vi.spyOn(globalThis, 'fetch').mockImplementation(fetchMock)
+
+    const user = userEvent.setup()
+    await setupTwoTypes(user)
+
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /confirm & start run/i })).toBeInTheDocument()
+    )
+    await user.click(screen.getByRole('button', { name: /confirm & start run/i }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/leads')
+    })
   })
 })
 
