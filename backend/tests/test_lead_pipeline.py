@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
-from app.models import Base, Run, Lead, GapSignal, RunStatus
+from app.models import Base, Run, Lead, GapSignal, RunStatus, SearchSlot
 from app.lead_pipeline.pipeline import execute_run
 from app.places_scraper.scraper import RawBusiness
 
@@ -387,3 +387,122 @@ async def test_max_results_cap_enforced(db):
     # And no more than CAP leads were saved
     lead_count = db.query(Lead).filter(Lead.run_id == run.id).count()
     assert lead_count <= CAP
+
+
+# ---------------------------------------------------------------------------
+# Tests for cycling mode (issue #17)
+# ---------------------------------------------------------------------------
+
+CYCLING_CONFIG_YAML = """\
+source_config:
+  industry: plumbers
+  state: TX
+  slots_per_run: 2
+max_results_per_run: 10
+"""
+
+
+async def test_cycling_mode_generates_correct_queries(db):
+    """
+    Cycling config (state+industry) generates queries in
+    "{search_term} in {county}, {state}" format and passes them to the scraper.
+    """
+    run = make_run(db, CYCLING_CONFIG_YAML)
+
+    captured_queries: list[list[str]] = []
+
+    async def mock_scrape(queries, max_results):
+        captured_queries.append(list(queries))
+        return []
+
+    with patch("app.lead_pipeline.pipeline.scrape_queries", side_effect=mock_scrape):
+        with patch("app.lead_pipeline.pipeline.analyze", new_callable=AsyncMock):
+            await execute_run(run.id, db)
+
+    assert len(captured_queries) == 1
+    queries = captured_queries[0]
+    # slots_per_run=2, so exactly 2 queries
+    assert len(queries) == 2
+    # Each query must match "{search_term} in {county}, TX"
+    for q in queries:
+        assert q.endswith(", TX"), f"Query {q!r} does not end with ', TX'"
+        assert " in " in q, f"Query {q!r} missing ' in '"
+
+
+async def test_cycling_mode_increments_slot_search_count(db):
+    """
+    After a successful cycling run, each selected slot has search_count==1
+    and last_run_id set to the run's id.
+    """
+    run = make_run(db, CYCLING_CONFIG_YAML)
+
+    async def mock_scrape(queries, max_results):
+        return []
+
+    with patch("app.lead_pipeline.pipeline.scrape_queries", side_effect=mock_scrape):
+        with patch("app.lead_pipeline.pipeline.analyze", new_callable=AsyncMock):
+            await execute_run(run.id, db)
+
+    db.refresh(run)
+    assert run.status == RunStatus.completed.value
+
+    slots = db.query(SearchSlot).filter_by(state="TX", industry="plumbers").all()
+    updated = [s for s in slots if s.search_count == 1]
+    assert len(updated) == 2, f"Expected 2 slots with search_count=1, got {len(updated)}"
+    for slot in updated:
+        assert slot.last_run_id == run.id, f"Expected last_run_id={run.id}, got {slot.last_run_id}"
+
+
+async def test_cycling_mode_does_not_increment_on_failure(db):
+    """
+    If the run fails (scraper raises), slot search_count must stay at 0.
+    """
+    run = make_run(db, CYCLING_CONFIG_YAML)
+
+    async def failing_scrape(queries, max_results):
+        raise RuntimeError("scraper exploded")
+
+    with patch("app.lead_pipeline.pipeline.scrape_queries", side_effect=failing_scrape):
+        with pytest.raises(RuntimeError, match="scraper exploded"):
+            await execute_run(run.id, db)
+
+    db.refresh(run)
+    assert run.status == RunStatus.failed.value
+
+    slots = db.query(SearchSlot).filter_by(state="TX", industry="plumbers").all()
+    assert all(s.search_count == 0 for s in slots), "Slot counts should not increment on failure"
+    assert all(s.last_run_id is None for s in slots), "last_run_id should not be set on failure"
+
+
+async def test_legacy_queries_mode_unchanged(db):
+    """
+    A run using the legacy queries: list config still works exactly as before.
+    The cycling path must not interfere.
+    """
+    run = make_run(db, SAMPLE_CONFIG_YAML)
+
+    captured_queries: list[list[str]] = []
+
+    async def mock_scrape(queries, max_results):
+        captured_queries.append(list(queries))
+        return [GOOD_BIZ]
+
+    from app.gap_analyzer.analyzer import AnalysisResult, GapSignalResult
+
+    async def mock_analyze(url):
+        return AnalysisResult(
+            gap_signals=[GapSignalResult("no_website", True, "No website listed")],
+            gap_score=10.0,
+            has_hard_signal=True,
+        )
+
+    with patch("app.lead_pipeline.pipeline.scrape_queries", side_effect=mock_scrape):
+        with patch("app.lead_pipeline.pipeline.analyze", side_effect=mock_analyze):
+            await execute_run(run.id, db)
+
+    db.refresh(run)
+    assert run.status == RunStatus.completed.value
+    assert run.total_leads == 1
+
+    # The legacy query string must be passed through unchanged
+    assert captured_queries == [["plumbers in Austin TX"]]

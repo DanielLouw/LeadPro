@@ -22,7 +22,8 @@ from app.gap_analyzer.analyzer import (
     analyze_review_signals,
 )
 from app.lead_pipeline.adapters import ADAPTER_REGISTRY
-from app.models import GapSignal, Lead, Note, Run, RunStatus
+from app.models import GapSignal, Lead, Note, Run, RunStatus, SearchSlot
+from app.pipeline.slot_selection import select_and_initialize_slots
 from app.places_scraper.scraper import RawBusiness, scrape_queries
 
 logger = logging.getLogger(__name__)
@@ -58,11 +59,29 @@ async def execute_run(run_id: int, db: Session) -> None:
     # Legacy YAML has top-level "queries"; new YAML puts them inside source_config.
     legacy_queries: list[str] = config.get("queries", [])
 
+    # Shape detection: cycling mode has "industry" + "state" in source_config.
+    is_cycling: bool = "industry" in source_config and "state" in source_config
+
     run.status = RunStatus.running.value
     run.queries_completed = 0
     db.commit()
 
+    cycling_slots: list[SearchSlot] = []
     try:
+        # ------------------------------------------------------------------
+        # Cycling mode: select slots and build query strings.
+        # Inside the try block so a failure here marks the run as failed.
+        # ------------------------------------------------------------------
+        if is_cycling:
+            state: str = source_config["state"]
+            industry: str = source_config["industry"]
+            slots_per_run: int = source_config.get("slots_per_run", 3)
+            cycling_slots = select_and_initialize_slots(db, state, industry, slots_per_run)
+            legacy_queries = [
+                f"{slot.search_term} in {slot.county}, {state}"
+                for slot in cycling_slots
+            ]
+
         raw_businesses = await adapter.fetch(
             source_config=source_config,
             max_results=max_results,
@@ -119,6 +138,21 @@ async def execute_run(run_id: int, db: Session) -> None:
         run.cost_usd = adapter.cost(len(raw_businesses))
 
         db.commit()
+
+        # ------------------------------------------------------------------
+        # Cycling mode: increment slot counts after successful commit.
+        # Done AFTER the main commit so counts are only updated on success.
+        # A failure here is non-fatal — the run already completed successfully.
+        # ------------------------------------------------------------------
+        if cycling_slots:
+            try:
+                for slot in cycling_slots:
+                    slot.search_count += 1
+                    slot.last_run_id = run_id
+                db.commit()
+            except Exception:
+                db.rollback()
+                logger.warning("Run %d: could not update cycling slot counts", run_id)
 
     except Exception as exc:
         logger.exception("Run %d failed", run_id)
