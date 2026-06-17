@@ -132,6 +132,26 @@ class Note(Base):
     lead: Mapped["Lead"] = relationship("Lead", back_populates="note")
 
 
+class SearchSlot(Base):
+    __tablename__ = "search_slots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    state: Mapped[str] = mapped_column(String(2), nullable=False)
+    county: Mapped[str] = mapped_column(String(100), nullable=False)
+    industry: Mapped[str] = mapped_column(String(255), nullable=False)
+    search_term: Mapped[str] = mapped_column(String(255), nullable=False)
+    search_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    last_run_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("runs.id", ondelete="SET NULL"), nullable=True
+    )
+
+    last_run: Mapped["Run | None"] = relationship("Run", foreign_keys=[last_run_id])
+
+    __table_args__ = (
+        UniqueConstraint("state", "county", "industry", "search_term", name="search_slots_unique"),
+    )
+
+
 class Settings(Base):
     __tablename__ = "settings"
 
