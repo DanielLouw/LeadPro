@@ -1,0 +1,3 @@
+[deploy]
+releaseCommand = "cd /app/backend && alembic upgrade head"
+startCommand = "cd /app/backend && uvicorn app.api.main:app --host 0.0.0.0 --port $PORT"
