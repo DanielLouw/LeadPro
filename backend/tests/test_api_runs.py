@@ -253,7 +253,7 @@ def test_estimate_cycling_config_defaults_slots_per_run_to_3(client):
 
 
 def test_estimate_cycling_config_missing_industry_returns_400(client):
-    """POST /runs/estimate with cycling config missing industry returns 400."""
+    """POST /runs/estimate with cycling config missing industry returns 400 from the cycling branch."""
     config = (
         "source: google_places\n"
         "source_config:\n"
@@ -263,10 +263,11 @@ def test_estimate_cycling_config_missing_industry_returns_400(client):
     )
     resp = client.post("/api/runs/estimate", json={"config_yaml": config})
     assert resp.status_code == 400
+    assert "industry" in resp.json()["detail"]
 
 
 def test_estimate_cycling_config_missing_state_returns_400(client):
-    """POST /runs/estimate with cycling config missing state returns 400."""
+    """POST /runs/estimate with cycling config missing state returns 400 from the cycling branch."""
     config = (
         "source: google_places\n"
         "source_config:\n"
@@ -276,6 +277,7 @@ def test_estimate_cycling_config_missing_state_returns_400(client):
     )
     resp = client.post("/api/runs/estimate", json={"config_yaml": config})
     assert resp.status_code == 400
+    assert "state" in resp.json()["detail"]
 
 
 def test_estimate_cycling_config_cost_matches_estimate_run_cost(client):
