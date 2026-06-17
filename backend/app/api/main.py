@@ -12,10 +12,12 @@ from app.api.routes import leads, runs, settings as settings_routes
 from app.api.routes.auth import router as auth_router
 from app.config import settings
 
-_bearer = HTTPBearer()
+_bearer = HTTPBearer(auto_error=False)
 
 
-def _verify_token(credentials: HTTPAuthorizationCredentials = Security(_bearer)) -> None:
+def _verify_token(credentials: HTTPAuthorizationCredentials | None = Security(_bearer)) -> None:
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         jwt.decode(credentials.credentials, settings.AUTH_SECRET, algorithms=["HS256"])
     except JWTError:
@@ -25,7 +27,7 @@ app = FastAPI(title="LeadPro API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS.split(","),
+    allow_origins=[o.strip() for o in settings.ALLOWED_ORIGINS.split(",")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

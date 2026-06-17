@@ -1,4 +1,5 @@
 import secrets
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 from jose import jwt
@@ -9,6 +10,7 @@ from app.config import settings
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 ALGORITHM = "HS256"
+TOKEN_EXPIRE_DAYS = 30
 
 
 class LoginRequest(BaseModel):
@@ -16,7 +18,8 @@ class LoginRequest(BaseModel):
 
 
 def create_access_token() -> str:
-    return jwt.encode({"sub": "user"}, settings.AUTH_SECRET, algorithm=ALGORITHM)
+    exp = datetime.now(tz=timezone.utc) + timedelta(days=TOKEN_EXPIRE_DAYS)
+    return jwt.encode({"sub": "user", "exp": exp}, settings.AUTH_SECRET, algorithm=ALGORITHM)
 
 
 @router.post("/login")
