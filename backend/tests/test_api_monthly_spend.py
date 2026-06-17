@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tests for GET /runs/monthly-spend (issue #0022).
 
 Verifies that the endpoint returns correct per-group spend and remaining budget
@@ -89,7 +89,7 @@ def test_monthly_spend_returns_expected_shape(client, test_db):
     """GET /runs/monthly-spend returns google_places and apify spend objects."""
     seed_settings(test_db)
 
-    resp = client.get("/runs/monthly-spend")
+    resp = client.get("/api/runs/monthly-spend")
 
     assert resp.status_code == 200
     data = resp.json()
@@ -114,7 +114,7 @@ def test_monthly_spend_includes_current_month_runs(client, test_db):
     seed_run(test_db, source="google_places", cost_usd=0.48, created_at=today)
     seed_run(test_db, source="apify_google_maps", cost_usd=1.20, created_at=today)
 
-    resp = client.get("/runs/monthly-spend")
+    resp = client.get("/api/runs/monthly-spend")
     data = resp.json()
 
     assert abs(data["google_places"]["spent_usd"] - 0.48) < 0.001
@@ -146,7 +146,7 @@ def test_monthly_spend_excludes_prior_month_runs(client, test_db):
     seed_run(test_db, source="google_places", cost_usd=99.99, created_at=last_month)
     seed_run(test_db, source="apify_google_maps", cost_usd=4.00, created_at=last_month)
 
-    resp = client.get("/runs/monthly-spend")
+    resp = client.get("/api/runs/monthly-spend")
     data = resp.json()
 
     assert data["google_places"]["spent_usd"] == 0.0
@@ -166,7 +166,7 @@ def test_monthly_spend_aggregates_all_apify_sources(client, test_db):
     seed_run(test_db, source="apify_google_maps", cost_usd=1.00, created_at=today)
     seed_run(test_db, source="apify_facebook_pages", cost_usd=0.50, created_at=today)
 
-    resp = client.get("/runs/monthly-spend")
+    resp = client.get("/api/runs/monthly-spend")
     data = resp.json()
 
     assert abs(data["apify"]["spent_usd"] - 1.50) < 0.001
@@ -181,7 +181,7 @@ def test_monthly_spend_returns_zero_when_no_runs(client, test_db):
     """When no runs exist for the current month, spent_usd is 0.0."""
     seed_settings(test_db)
 
-    resp = client.get("/runs/monthly-spend")
+    resp = client.get("/api/runs/monthly-spend")
     data = resp.json()
 
     assert data["google_places"]["spent_usd"] == 0.0
@@ -197,6 +197,6 @@ def test_monthly_spend_without_settings_returns_404(client, test_db):
     """When no Settings row exists, the endpoint returns 404."""
     # Do NOT seed settings — table is empty
 
-    resp = client.get("/runs/monthly-spend")
+    resp = client.get("/api/runs/monthly-spend")
 
     assert resp.status_code == 404

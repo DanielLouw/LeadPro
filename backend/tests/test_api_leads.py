@@ -1,4 +1,4 @@
-"""
+﻿"""
 API tests for lead detail endpoints (issue #0007).
 
 Covers:
@@ -97,7 +97,7 @@ class TestPatchLeadStatus:
     def test_valid_status_transition_returns_200(self, client, test_db):
         """PATCH /leads/:id/status with a valid status returns 200 and updated lead."""
         lead_id = _seed_lead(test_db)
-        resp = client.patch(f"/leads/{lead_id}/status", json={"status": "reviewing"})
+        resp = client.patch(f"/api/leads/{lead_id}/status", json={"status": "reviewing"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "reviewing"
@@ -105,32 +105,32 @@ class TestPatchLeadStatus:
     def test_status_persisted_to_db(self, client, test_db):
         """Status change is reflected when the lead is fetched again."""
         lead_id = _seed_lead(test_db)
-        client.patch(f"/leads/{lead_id}/status", json={"status": "contacted"})
-        resp = client.get(f"/leads/{lead_id}")
+        client.patch(f"/api/leads/{lead_id}/status", json={"status": "contacted"})
+        resp = client.get(f"/api/leads/{lead_id}")
         assert resp.json()["status"] == "contacted"
 
     def test_all_valid_statuses_accepted(self, client, test_db):
         """All four valid statuses — new, reviewing, contacted, pass — are accepted."""
         for status in ("new", "reviewing", "contacted", "pass"):
             lead_id = _seed_lead(test_db)
-            resp = client.patch(f"/leads/{lead_id}/status", json={"status": status})
+            resp = client.patch(f"/api/leads/{lead_id}/status", json={"status": status})
             assert resp.status_code == 200, f"Expected 200 for status={status!r}"
 
     def test_invalid_status_returns_422(self, client, test_db):
         """PATCH /leads/:id/status with an invalid status value returns 422."""
         lead_id = _seed_lead(test_db)
-        resp = client.patch(f"/leads/{lead_id}/status", json={"status": "archived"})
+        resp = client.patch(f"/api/leads/{lead_id}/status", json={"status": "archived"})
         assert resp.status_code == 422
 
     def test_missing_lead_returns_404(self, client, test_db):
         """PATCH /leads/9999/status returns 404 when the lead does not exist."""
-        resp = client.patch("/leads/9999/status", json={"status": "reviewing"})
+        resp = client.patch("/api/leads/9999/status", json={"status": "reviewing"})
         assert resp.status_code == 404
 
     def test_response_includes_gap_signals(self, client, test_db):
         """Response body for a status update includes gap_signals."""
         lead_id = _seed_lead(test_db)
-        resp = client.patch(f"/leads/{lead_id}/status", json={"status": "pass"})
+        resp = client.patch(f"/api/leads/{lead_id}/status", json={"status": "pass"})
         data = resp.json()
         assert len(data["gap_signals"]) == 1
         assert data["gap_signals"][0]["signal_type"] == "no_https"
@@ -144,7 +144,7 @@ class TestPatchLeadNotes:
     def test_save_note_returns_200(self, client, test_db):
         """PATCH /leads/:id/notes saves a note and returns 200 with updated lead."""
         lead_id = _seed_lead(test_db)
-        resp = client.patch(f"/leads/{lead_id}/notes", json={"content": "Follow up next Monday"})
+        resp = client.patch(f"/api/leads/{lead_id}/notes", json={"content": "Follow up next Monday"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["note"]["content"] == "Follow up next Monday"
@@ -152,26 +152,26 @@ class TestPatchLeadNotes:
     def test_note_persisted_to_db(self, client, test_db):
         """Note is retrievable on subsequent GET."""
         lead_id = _seed_lead(test_db)
-        client.patch(f"/leads/{lead_id}/notes", json={"content": "Important client"})
-        resp = client.get(f"/leads/{lead_id}")
+        client.patch(f"/api/leads/{lead_id}/notes", json={"content": "Important client"})
+        resp = client.get(f"/api/leads/{lead_id}")
         assert resp.json()["note"]["content"] == "Important client"
 
     def test_update_existing_note(self, client, test_db):
         """Calling PATCH /notes twice replaces the note content."""
         lead_id = _seed_lead(test_db)
-        client.patch(f"/leads/{lead_id}/notes", json={"content": "First note"})
-        client.patch(f"/leads/{lead_id}/notes", json={"content": "Updated note"})
-        resp = client.get(f"/leads/{lead_id}")
+        client.patch(f"/api/leads/{lead_id}/notes", json={"content": "First note"})
+        client.patch(f"/api/leads/{lead_id}/notes", json={"content": "Updated note"})
+        resp = client.get(f"/api/leads/{lead_id}")
         assert resp.json()["note"]["content"] == "Updated note"
 
     def test_empty_note_content_accepted(self, client, test_db):
         """Empty string content is a valid note (clearing a note)."""
         lead_id = _seed_lead(test_db)
-        resp = client.patch(f"/leads/{lead_id}/notes", json={"content": ""})
+        resp = client.patch(f"/api/leads/{lead_id}/notes", json={"content": ""})
         assert resp.status_code == 200
         assert resp.json()["note"]["content"] == ""
 
     def test_missing_lead_returns_404(self, client, test_db):
         """PATCH /leads/9999/notes returns 404 when the lead does not exist."""
-        resp = client.patch("/leads/9999/notes", json={"content": "Ghost note"})
+        resp = client.patch("/api/leads/9999/notes", json={"content": "Ghost note"})
         assert resp.status_code == 404

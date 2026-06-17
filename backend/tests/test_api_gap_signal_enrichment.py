@@ -1,4 +1,4 @@
-"""
+﻿"""
 API tests for Gap Signal enrichment — issue #0011.
 
 Covers:
@@ -94,7 +94,7 @@ class TestServiceField:
     def test_no_website_maps_to_website_build(self, client, test_db):
         """no_website signal type maps to service='Website Build'."""
         run_id = _seed_run_with_signal(test_db, "no_website", is_hard=True)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         leads = resp.json()
         assert len(leads) == 1
@@ -105,7 +105,7 @@ class TestServiceField:
     def test_broken_website_maps_to_website_build(self, client, test_db):
         """broken_website signal type maps to service='Website Build'."""
         run_id = _seed_run_with_signal(test_db, "broken_website", is_hard=True)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "Website Build"
@@ -113,7 +113,7 @@ class TestServiceField:
     def test_no_https_maps_to_website_build(self, client, test_db):
         """no_https signal type maps to service='Website Build'."""
         run_id = _seed_run_with_signal(test_db, "no_https", is_hard=True)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "Website Build"
@@ -121,7 +121,7 @@ class TestServiceField:
     def test_low_pagespeed_maps_to_website_modernisation(self, client, test_db):
         """low_pagespeed signal type maps to service='Website Modernisation'."""
         run_id = _seed_run_with_signal(test_db, "low_pagespeed", is_hard=True)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "Website Modernisation"
@@ -129,7 +129,7 @@ class TestServiceField:
     def test_no_viewport_tag_maps_to_website_modernisation(self, client, test_db):
         """no_viewport_tag signal type maps to service='Website Modernisation'."""
         run_id = _seed_run_with_signal(test_db, "no_viewport_tag", is_hard=False)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "Website Modernisation"
@@ -137,7 +137,7 @@ class TestServiceField:
     def test_missing_meta_title_maps_to_seo_package(self, client, test_db):
         """missing_meta_title signal type maps to service='SEO Package'."""
         run_id = _seed_run_with_signal(test_db, "missing_meta_title", is_hard=False)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "SEO Package"
@@ -145,7 +145,7 @@ class TestServiceField:
     def test_missing_meta_description_maps_to_seo_package(self, client, test_db):
         """missing_meta_description signal type maps to service='SEO Package'."""
         run_id = _seed_run_with_signal(test_db, "missing_meta_description", is_hard=False)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "SEO Package"
@@ -153,7 +153,7 @@ class TestServiceField:
     def test_no_sitemap_maps_to_seo_package(self, client, test_db):
         """no_sitemap signal type maps to service='SEO Package'."""
         run_id = _seed_run_with_signal(test_db, "no_sitemap", is_hard=False)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "SEO Package"
@@ -161,7 +161,7 @@ class TestServiceField:
     def test_no_robots_txt_maps_to_seo_package(self, client, test_db):
         """no_robots_txt signal type maps to service='SEO Package'."""
         run_id = _seed_run_with_signal(test_db, "no_robots_txt", is_hard=False)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "SEO Package"
@@ -169,7 +169,7 @@ class TestServiceField:
     def test_no_schema_markup_maps_to_seo_package(self, client, test_db):
         """no_schema_markup signal type maps to service='SEO Package'."""
         run_id = _seed_run_with_signal(test_db, "no_schema_markup", is_hard=False)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "SEO Package"
@@ -177,7 +177,7 @@ class TestServiceField:
     def test_slow_lcp_maps_to_website_modernisation(self, client, test_db):
         """slow_lcp signal type maps to service='Website Modernisation'."""
         run_id = _seed_run_with_signal(test_db, "slow_lcp", is_hard=False)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "Website Modernisation"
@@ -185,7 +185,7 @@ class TestServiceField:
     def test_high_cls_maps_to_website_modernisation(self, client, test_db):
         """high_cls signal type maps to service='Website Modernisation'."""
         run_id = _seed_run_with_signal(test_db, "high_cls", is_hard=False)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "Website Modernisation"
@@ -193,7 +193,7 @@ class TestServiceField:
     def test_slow_inp_maps_to_website_modernisation(self, client, test_db):
         """slow_inp signal type maps to service='Website Modernisation'."""
         run_id = _seed_run_with_signal(test_db, "slow_inp", is_hard=False)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert signal["service"] == "Website Modernisation"
@@ -225,7 +225,7 @@ class TestSalesCopyField:
     def test_sales_copy_non_empty(self, client, test_db, signal_type, is_hard):
         """sales_copy is a non-empty string for every signal type."""
         run_id = _seed_run_with_signal(test_db, signal_type, is_hard=is_hard)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert "sales_copy" in signal
@@ -236,7 +236,7 @@ class TestSalesCopyField:
     def test_service_present(self, client, test_db, signal_type, is_hard):
         """service field is present and non-empty for every signal type."""
         run_id = _seed_run_with_signal(test_db, signal_type, is_hard=is_hard)
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         signal = resp.json()[0]["gap_signals"][0]
         assert "service" in signal

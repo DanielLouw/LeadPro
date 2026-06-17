@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     PAGESPEED_API_KEY: str = ""
     DATABASE_URL: str = "sqlite:///./leadpro.db"
     APIFY_API_KEY: str = ""
+    ALLOWED_ORIGINS: str = "http://localhost:5173"
+    AUTH_SECRET: str = "change-me-in-production"
+    AUTH_PASSWORD: str = "change-me-in-production"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

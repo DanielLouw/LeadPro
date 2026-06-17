@@ -2,25 +2,39 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Security
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
+from jose import JWTError, jwt
 
 from app.api.routes import leads, runs, settings as settings_routes
+from app.api.routes.auth import router as auth_router
 from app.config import settings
+
+_bearer = HTTPBearer()
+
+
+def _verify_token(credentials: HTTPAuthorizationCredentials = Security(_bearer)) -> None:
+    try:
+        jwt.decode(credentials.credentials, settings.AUTH_SECRET, algorithms=["HS256"])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 app = FastAPI(title="LeadPro API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.ALLOWED_ORIGINS.split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(runs.router)
-app.include_router(leads.router)
-app.include_router(settings_routes.router)
+app.include_router(auth_router, prefix="/api")
+app.include_router(runs.router, prefix="/api", dependencies=[Depends(_verify_token)])
+app.include_router(leads.router, prefix="/api", dependencies=[Depends(_verify_token)])
+app.include_router(settings_routes.router, prefix="/api", dependencies=[Depends(_verify_token)])
 
 _BACKEND_DIR = Path(__file__).parent.parent.parent
 
@@ -60,3 +74,8 @@ def on_startup() -> None:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+_FRONTEND_DIST = _BACKEND_DIR.parent / "frontend" / "dist"
+if _FRONTEND_DIST.exists():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="static")

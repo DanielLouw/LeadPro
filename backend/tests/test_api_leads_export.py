@@ -1,4 +1,4 @@
-"""
+﻿"""
 API tests for GET /runs/{run_id}/leads/export (issue #0010).
 
 Uses FastAPI TestClient with an isolated in-memory SQLite instance per test.
@@ -126,7 +126,7 @@ def test_export_returns_csv_content_type(client, test_db):
     """GET /runs/{id}/leads/export returns Content-Type: text/csv."""
     run_id, _ = _seed_run_with_leads(test_db)
 
-    resp = client.get(f"/runs/{run_id}/leads/export")
+    resp = client.get(f"/api/runs/{run_id}/leads/export")
 
     assert resp.status_code == 200
     assert "text/csv" in resp.headers["content-type"]
@@ -136,7 +136,7 @@ def test_export_returns_attachment_disposition(client, test_db):
     """GET /runs/{id}/leads/export sets Content-Disposition: attachment."""
     run_id, _ = _seed_run_with_leads(test_db)
 
-    resp = client.get(f"/runs/{run_id}/leads/export")
+    resp = client.get(f"/api/runs/{run_id}/leads/export")
 
     disposition = resp.headers.get("content-disposition", "")
     assert "attachment" in disposition
@@ -152,7 +152,7 @@ def test_export_csv_contains_all_required_columns(client, test_db):
     """CSV header includes all required fields."""
     run_id, _ = _seed_run_with_leads(test_db)
 
-    resp = client.get(f"/runs/{run_id}/leads/export")
+    resp = client.get(f"/api/runs/{run_id}/leads/export")
 
     rows = _parse_csv(resp.text)
     assert len(rows) > 0
@@ -164,7 +164,7 @@ def test_export_csv_field_values_are_correct(client, test_db):
     """CSV rows contain the correct values for each lead."""
     run_id, _ = _seed_run_with_leads(test_db)
 
-    resp = client.get(f"/runs/{run_id}/leads/export")
+    resp = client.get(f"/api/runs/{run_id}/leads/export")
 
     rows = _parse_csv(resp.text)
     alpha = next(r for r in rows if r["name"] == "Alpha Plumber")
@@ -186,7 +186,7 @@ def test_export_gap_signals_comma_separated(client, test_db):
     """Gap signal descriptions are joined with ', ' (comma-space)."""
     run_id, _ = _seed_run_with_leads(test_db)
 
-    resp = client.get(f"/runs/{run_id}/leads/export")
+    resp = client.get(f"/api/runs/{run_id}/leads/export")
 
     rows = _parse_csv(resp.text)
     alpha = next(r for r in rows if r["name"] == "Alpha Plumber")
@@ -209,7 +209,7 @@ def test_export_empty_notes_are_blank(client, test_db):
     """Leads with no note export an empty string, not 'None' or 'null'."""
     run_id, _ = _seed_run_with_leads(test_db)
 
-    resp = client.get(f"/runs/{run_id}/leads/export")
+    resp = client.get(f"/api/runs/{run_id}/leads/export")
 
     rows = _parse_csv(resp.text)
     beta = next(r for r in rows if r["name"] == "Beta Plumber")
@@ -235,7 +235,7 @@ def test_export_with_no_leads_returns_header_only(client, test_db):
     finally:
         db.close()
 
-    resp = client.get(f"/runs/{run_id}/leads/export")
+    resp = client.get(f"/api/runs/{run_id}/leads/export")
 
     assert resp.status_code == 200
     rows = _parse_csv(resp.text)
@@ -251,7 +251,7 @@ def test_export_with_status_filter_excludes_other_statuses(client, test_db):
     """When status filter is applied, only matching leads appear in CSV."""
     run_id, _ = _seed_run_with_leads(test_db)
 
-    resp = client.get(f"/runs/{run_id}/leads/export?status=new")
+    resp = client.get(f"/api/runs/{run_id}/leads/export?status=new")
 
     assert resp.status_code == 200
     rows = _parse_csv(resp.text)
@@ -264,7 +264,7 @@ def test_export_with_min_gap_score_filter(client, test_db):
     """min_gap_score filter excludes leads below the threshold."""
     run_id, _ = _seed_run_with_leads(test_db)
 
-    resp = client.get(f"/runs/{run_id}/leads/export?min_gap_score=8")
+    resp = client.get(f"/api/runs/{run_id}/leads/export?min_gap_score=8")
 
     assert resp.status_code == 200
     rows = _parse_csv(resp.text)
@@ -280,6 +280,6 @@ def test_export_with_min_gap_score_filter(client, test_db):
 
 def test_export_returns_404_for_unknown_run(client, test_db):
     """GET /runs/{id}/leads/export returns 404 when run does not exist."""
-    resp = client.get("/runs/99999/leads/export")
+    resp = client.get("/api/runs/99999/leads/export")
 
     assert resp.status_code == 404

@@ -1,4 +1,4 @@
-"""
+﻿"""
 API tests for POST /runs (issue #0004).
 
 Uses FastAPI TestClient with all external calls mocked.
@@ -69,7 +69,7 @@ SAMPLE_CONFIG = "queries:\n  - plumbers in Austin TX\nmax_results_per_run: 10\n"
 def test_post_runs_returns_201_with_run_id(client, test_db):
     """POST /runs creates a run and returns id + pending status."""
     with patch("app.api.routes.runs._run_pipeline", new_callable=AsyncMock):
-        resp = client.post("/runs/", json={"config_yaml": SAMPLE_CONFIG})
+        resp = client.post("/api/runs/", json={"config_yaml": SAMPLE_CONFIG})
 
     assert resp.status_code == 201
     data = resp.json()
@@ -82,7 +82,7 @@ def test_post_runs_returns_201_with_run_id(client, test_db):
 def test_post_runs_persists_run_to_db(client, test_db):
     """POST /runs persists the run to the database."""
     with patch("app.api.routes.runs._run_pipeline", new_callable=AsyncMock):
-        resp = client.post("/runs/", json={"config_yaml": SAMPLE_CONFIG})
+        resp = client.post("/api/runs/", json={"config_yaml": SAMPLE_CONFIG})
 
     run_id = resp.json()["id"]
     db = test_db()
@@ -97,7 +97,7 @@ def test_post_runs_persists_run_to_db(client, test_db):
 def test_post_runs_triggers_pipeline(client, test_db):
     """POST /runs schedules the pipeline as a background task."""
     with patch("app.api.routes.runs._run_pipeline", new_callable=AsyncMock) as mock_pipeline:
-        client.post("/runs/", json={"config_yaml": SAMPLE_CONFIG})
+        client.post("/api/runs/", json={"config_yaml": SAMPLE_CONFIG})
     # Background tasks run synchronously in TestClient
     mock_pipeline.assert_called_once()
 
@@ -146,12 +146,12 @@ def test_post_runs_full_pipeline_mocked(client, test_db):
             db.close()
 
     with patch("app.api.routes.runs._run_pipeline", side_effect=mock_pipeline):
-        post_resp = client.post("/runs/", json={"config_yaml": SAMPLE_CONFIG})
+        post_resp = client.post("/api/runs/", json={"config_yaml": SAMPLE_CONFIG})
 
     assert post_resp.status_code == 201
     run_id = post_resp.json()["id"]
 
-    get_resp = client.get(f"/leads/run/{run_id}")
+    get_resp = client.get(f"/api/leads/run/{run_id}")
     assert get_resp.status_code == 200
     leads = get_resp.json()
     assert len(leads) == 1
@@ -172,7 +172,7 @@ def test_estimate_returns_cost_breakdown(client):
       - estimated_cost_usd: a positive float
     """
     config = "queries:\n  - plumbers in Austin TX\n  - hvac in Dallas TX\nmax_results_per_run: 100\n"
-    resp = client.post("/runs/estimate", json={"config_yaml": config})
+    resp = client.post("/api/runs/estimate", json={"config_yaml": config})
     assert resp.status_code == 200
     data = resp.json()
 
@@ -192,7 +192,7 @@ def test_estimate_respects_max_results_cap(client):
     # 5 queries × 20 results = 100 potential results, but cap is 30
     queries = "\n".join(f"  - query {i}" for i in range(5))
     config = f"queries:\n{queries}\nmax_results_per_run: 30\n"
-    resp = client.post("/runs/estimate", json={"config_yaml": config})
+    resp = client.post("/api/runs/estimate", json={"config_yaml": config})
     assert resp.status_code == 200
     data = resp.json()
     assert data["estimated_results"] == 30
@@ -201,5 +201,5 @@ def test_estimate_respects_max_results_cap(client):
 def test_estimate_returns_400_for_missing_queries(client):
     """POST /runs/estimate with YAML that has no queries returns 400."""
     config = "max_results_per_run: 500\n"
-    resp = client.post("/runs/estimate", json={"config_yaml": config})
+    resp = client.post("/api/runs/estimate", json={"config_yaml": config})
     assert resp.status_code == 400

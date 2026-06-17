@@ -1,4 +1,4 @@
-"""
+﻿"""
 API tests for lead filtering, sorting, and run progress (issue #0008).
 
 Covers:
@@ -116,7 +116,7 @@ class TestFilterBySignalType:
         """?signal_types=no_website returns only leads that have that signal."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?signal_types=no_website")
+        resp = client.get(f"/api/leads/run/{run_id}?signal_types=no_website")
         assert resp.status_code == 200
         data = resp.json()
 
@@ -129,7 +129,7 @@ class TestFilterBySignalType:
         """?signal_types=no_website&signal_types=missing_meta_title returns leads with EITHER signal."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?signal_types=no_website&signal_types=missing_meta_title")
+        resp = client.get(f"/api/leads/run/{run_id}?signal_types=no_website&signal_types=missing_meta_title")
         assert resp.status_code == 200
         data = resp.json()
 
@@ -142,7 +142,7 @@ class TestFilterBySignalType:
         """Without ?signal_types= all leads are returned."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         assert len(resp.json()) == 3
 
@@ -150,7 +150,7 @@ class TestFilterBySignalType:
         """An unrecognised signal type returns an empty list (no match)."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?signal_types=nonexistent_signal")
+        resp = client.get(f"/api/leads/run/{run_id}?signal_types=nonexistent_signal")
         assert resp.status_code == 200
         assert resp.json() == []
 
@@ -164,7 +164,7 @@ class TestFilterByStatus:
         """?statuses=new returns only leads with status=new."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?statuses=new")
+        resp = client.get(f"/api/leads/run/{run_id}?statuses=new")
         assert resp.status_code == 200
         data = resp.json()
 
@@ -175,7 +175,7 @@ class TestFilterByStatus:
         """?statuses=new&statuses=reviewing returns leads with either status."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?statuses=new&statuses=reviewing")
+        resp = client.get(f"/api/leads/run/{run_id}?statuses=new&statuses=reviewing")
         assert resp.status_code == 200
         data = resp.json()
 
@@ -188,7 +188,7 @@ class TestFilterByStatus:
         """?statuses=bogus should return 422 Unprocessable Entity."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?statuses=bogus")
+        resp = client.get(f"/api/leads/run/{run_id}?statuses=bogus")
         assert resp.status_code == 422
 
 
@@ -201,7 +201,7 @@ class TestSorting:
         """Without ?sort= leads come back highest gap_score first."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}")
+        resp = client.get(f"/api/leads/run/{run_id}")
         assert resp.status_code == 200
         scores = [d["gap_score"] for d in resp.json()]
         assert scores == sorted(scores, reverse=True)
@@ -210,7 +210,7 @@ class TestSorting:
         """?sort=name returns leads alphabetically by name."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?sort=name")
+        resp = client.get(f"/api/leads/run/{run_id}?sort=name")
         assert resp.status_code == 200
         names = [d["name"] for d in resp.json()]
         assert names == sorted(names)
@@ -219,7 +219,7 @@ class TestSorting:
         """?sort=city returns leads alphabetically by city."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?sort=city")
+        resp = client.get(f"/api/leads/run/{run_id}?sort=city")
         assert resp.status_code == 200
         cities = [d["city"] for d in resp.json()]
         assert cities == sorted(cities)
@@ -228,7 +228,7 @@ class TestSorting:
         """?sort=gap_score is accepted and returns highest first."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?sort=gap_score")
+        resp = client.get(f"/api/leads/run/{run_id}?sort=gap_score")
         assert resp.status_code == 200
         scores = [d["gap_score"] for d in resp.json()]
         assert scores == sorted(scores, reverse=True)
@@ -237,7 +237,7 @@ class TestSorting:
         """?sort=unknown should return 422."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?sort=unknown")
+        resp = client.get(f"/api/leads/run/{run_id}?sort=unknown")
         assert resp.status_code == 422
 
 
@@ -250,7 +250,7 @@ class TestCombinedFilterSort:
         """signal_types + sort can be combined."""
         run_id = _seed_run_with_leads(test_db)
 
-        resp = client.get(f"/leads/run/{run_id}?signal_types=no_website&sort=name")
+        resp = client.get(f"/api/leads/run/{run_id}?signal_types=no_website&sort=name")
         assert resp.status_code == 200
         data = resp.json()
         names = [d["name"] for d in data]
@@ -275,7 +275,7 @@ class TestRunProgress:
         finally:
             db.close()
 
-        resp = client.get(f"/runs/{run_id}/progress")
+        resp = client.get(f"/api/runs/{run_id}/progress")
         assert resp.status_code == 200
 
     def test_progress_returns_required_fields(self, client, test_db):
@@ -295,7 +295,7 @@ class TestRunProgress:
         finally:
             db.close()
 
-        resp = client.get(f"/runs/{run_id}/progress")
+        resp = client.get(f"/api/runs/{run_id}/progress")
         assert resp.status_code == 200
         data = resp.json()
         assert data["queries_completed"] == 3
@@ -305,5 +305,5 @@ class TestRunProgress:
 
     def test_progress_returns_404_for_missing_run(self, client, test_db):
         """GET /runs/9999/progress returns 404 when run doesn't exist."""
-        resp = client.get("/runs/9999/progress")
+        resp = client.get("/api/runs/9999/progress")
         assert resp.status_code == 404
