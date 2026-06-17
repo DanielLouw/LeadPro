@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiFetch } from '../utils/apiFetch'
 
 const SETTINGS_URL = '/api/settings'
 
@@ -18,7 +19,7 @@ export default function SettingsPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(SETTINGS_URL)
+    apiFetch(SETTINGS_URL)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json() as Promise<BudgetSettings>
@@ -49,7 +50,7 @@ export default function SettingsPage() {
     setFormStatus('saving')
     setSaveError(null)
     try {
-      const res = await fetch(SETTINGS_URL, {
+      const res = await apiFetch(SETTINGS_URL, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

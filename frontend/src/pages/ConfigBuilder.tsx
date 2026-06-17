@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import * as yaml from 'js-yaml'
 import { useNavigate } from 'react-router-dom'
+import { apiFetch } from '../utils/apiFetch'
 import { businessTypes } from '../data/businessTypes'
 import { stateCities } from '../data/stateCities'
 
@@ -229,12 +230,12 @@ export default function ConfigBuilder() {
       const isApify = source !== 'google_places'
 
       const [estimateResp, spendResp] = await Promise.all([
-        fetch('/api/runs/estimate', {
+        apiFetch('/api/runs/estimate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ config_yaml: configYaml }),
         }),
-        isApify ? fetch('/api/runs/monthly-spend') : Promise.resolve(null),
+        isApify ? apiFetch('/api/runs/monthly-spend') : Promise.resolve(null),
       ])
 
       if (!estimateResp.ok) {
@@ -265,7 +266,7 @@ export default function ConfigBuilder() {
     setRunError(null)
 
     try {
-      const resp = await fetch('/api/runs/', {
+      const resp = await apiFetch('/api/runs/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config_yaml: configYaml }),
