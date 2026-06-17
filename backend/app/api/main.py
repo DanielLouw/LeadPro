@@ -58,11 +58,7 @@ def on_startup() -> None:
 
     cfg = Config(str(_BACKEND_DIR / "alembic.ini"))
     cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-    try:
-        command.upgrade(cfg, "head")
-    except Exception:
-        logging.exception("Alembic upgrade failed")
-        raise
+    command.upgrade(cfg, "head")
 
     # Seed the single settings row if absent
     with _engine.connect() as conn:
