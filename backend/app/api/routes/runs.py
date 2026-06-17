@@ -105,12 +105,28 @@ def get_run_estimate(body: CreateRunRequest) -> RunEstimateResponse:
     max_results: int = config.get("max_results_per_run", DEFAULT_MAX_RESULTS_PER_RUN)
 
     if source == "google_places":
-        queries = (config.get("source_config") or {}).get("queries") or config.get("queries", [])
-        if not isinstance(queries, list) or not queries:
-            raise HTTPException(status_code=400, detail="Config must include at least one query")
-        query_count = len(queries)
-        # Each query yields at most one page of results, capped by max_results_per_run.
-        estimated_results = min(query_count * PLACES_RESULTS_PER_REQUEST, max_results)
+        source_config: dict = config.get("source_config") or {}
+        is_cycling = "industry" in source_config and "state" in source_config
+
+        if is_cycling:
+            industry = source_config.get("industry")
+            state = source_config.get("state")
+            if not industry:
+                raise HTTPException(status_code=400, detail="Cycling config must include 'industry'")
+            if not state:
+                raise HTTPException(status_code=400, detail="Cycling config must include 'state'")
+            slots_per_run: int = source_config.get("slots_per_run", 3)
+            if not isinstance(slots_per_run, int) or slots_per_run < 1:
+                raise HTTPException(status_code=400, detail="'slots_per_run' must be a positive integer")
+            query_count = slots_per_run
+            estimated_results = slots_per_run * max_results
+        else:
+            queries = source_config.get("queries") or config.get("queries", [])
+            if not isinstance(queries, list) or not queries:
+                raise HTTPException(status_code=400, detail="Config must include at least one query")
+            query_count = len(queries)
+            # Each query yields at most one page of results, capped by max_results_per_run.
+            estimated_results = min(query_count * PLACES_RESULTS_PER_REQUEST, max_results)
     else:
         query_count = 1
         estimated_results = max_results

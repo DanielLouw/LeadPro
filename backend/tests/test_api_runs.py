@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.main import app
+from app.budget import estimate_run_cost
 from app.database import get_db
 from app.models import Base, Run, Lead, GapSignal, RunStatus
 
@@ -201,5 +202,114 @@ def test_estimate_respects_max_results_cap(client):
 def test_estimate_returns_400_for_missing_queries(client):
     """POST /runs/estimate with YAML that has no queries returns 400."""
     config = "max_results_per_run: 500\n"
+    resp = client.post("/api/runs/estimate", json={"config_yaml": config})
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# POST /runs/estimate — cycling config shape (issue #0018)
+# ---------------------------------------------------------------------------
+
+def test_estimate_cycling_config_returns_correct_values(client):
+    """
+    POST /runs/estimate with cycling config (industry + state + slots_per_run)
+    returns query_count == slots_per_run and estimated_results == slots_per_run * max_results_per_run.
+    """
+    config = (
+        "source: google_places\n"
+        "source_config:\n"
+        "  industry: plumbers\n"
+        "  state: TX\n"
+        "  slots_per_run: 5\n"
+        "max_results_per_run: 20\n"
+    )
+    resp = client.post("/api/runs/estimate", json={"config_yaml": config})
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["query_count"] == 5
+    assert data["estimated_results"] == 5 * 20  # slots_per_run * max_results_per_run
+    assert isinstance(data["estimated_cost_usd"], float)
+    assert data["estimated_cost_usd"] > 0
+
+
+def test_estimate_cycling_config_defaults_slots_per_run_to_3(client):
+    """
+    POST /runs/estimate with cycling config omitting slots_per_run defaults to 3.
+    """
+    config = (
+        "source: google_places\n"
+        "source_config:\n"
+        "  industry: plumbers\n"
+        "  state: TX\n"
+        "max_results_per_run: 20\n"
+    )
+    resp = client.post("/api/runs/estimate", json={"config_yaml": config})
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["query_count"] == 3  # default slots_per_run
+    assert data["estimated_results"] == 3 * 20
+
+
+def test_estimate_cycling_config_missing_industry_returns_400(client):
+    """POST /runs/estimate with cycling config missing industry returns 400."""
+    config = (
+        "source: google_places\n"
+        "source_config:\n"
+        "  state: TX\n"
+        "  slots_per_run: 3\n"
+        "max_results_per_run: 20\n"
+    )
+    resp = client.post("/api/runs/estimate", json={"config_yaml": config})
+    assert resp.status_code == 400
+
+
+def test_estimate_cycling_config_missing_state_returns_400(client):
+    """POST /runs/estimate with cycling config missing state returns 400."""
+    config = (
+        "source: google_places\n"
+        "source_config:\n"
+        "  industry: plumbers\n"
+        "  slots_per_run: 3\n"
+        "max_results_per_run: 20\n"
+    )
+    resp = client.post("/api/runs/estimate", json={"config_yaml": config})
+    assert resp.status_code == 400
+
+
+def test_estimate_cycling_config_cost_matches_estimate_run_cost(client):
+    """
+    The estimated_cost_usd for cycling config equals
+    estimate_run_cost('google_places', slots_per_run * max_results_per_run).
+    """
+    slots = 4
+    max_results = 20
+    config = (
+        f"source: google_places\n"
+        f"source_config:\n"
+        f"  industry: plumbers\n"
+        f"  state: TX\n"
+        f"  slots_per_run: {slots}\n"
+        f"max_results_per_run: {max_results}\n"
+    )
+    resp = client.post("/api/runs/estimate", json={"config_yaml": config})
+    assert resp.status_code == 200
+    data = resp.json()
+
+    expected_cost = estimate_run_cost("google_places", slots * max_results)
+    assert data["estimated_cost_usd"] == pytest.approx(expected_cost)
+
+
+def test_estimate_cycling_config_invalid_slots_per_run_returns_400(client):
+    """POST /runs/estimate with a non-positive slots_per_run returns 400."""
+    config = (
+        "source: google_places\n"
+        "source_config:\n"
+        "  industry: plumbers\n"
+        "  state: TX\n"
+        "  slots_per_run: 0\n"
+        "max_results_per_run: 20\n"
+    )
     resp = client.post("/api/runs/estimate", json={"config_yaml": config})
     assert resp.status_code == 400
