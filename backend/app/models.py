@@ -162,28 +162,3 @@ class Settings(Base):
     apify_monthly_budget_usd: Mapped[float] = mapped_column(
         Float, nullable=False, default=5.0, server_default="5.0"
     )
-
-
-class SearchSlot(Base):
-    __tablename__ = "search_slots"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    state: Mapped[str] = mapped_column(String(100), nullable=False)
-    county: Mapped[str] = mapped_column(String(100), nullable=False)
-    industry: Mapped[str] = mapped_column(String(100), nullable=False)
-    search_term: Mapped[str] = mapped_column(String(255), nullable=False)
-    search_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
-    last_run_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("runs.id", ondelete="SET NULL"), nullable=True
-    )
-
-    last_run: Mapped["Run | None"] = relationship("Run", passive_deletes=True)
-
-    __table_args__ = (
-        UniqueConstraint(
-            "state", "county", "industry", "search_term",
-            name="search_slots_state_county_industry_term_unique",
-        ),
-    )
