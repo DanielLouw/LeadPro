@@ -5,7 +5,9 @@ import { apiFetch } from '../utils/apiFetch'
 import { businessTypes } from '../data/businessTypes'
 import { stateCities } from '../data/stateCities'
 
-const DEFAULT_MAX_RESULTS = 500
+const DEFAULT_APIFY_MAX_RESULTS = 500
+const CYCLING_SLOTS_PER_RUN = 3
+const CYCLING_MAX_RESULTS = 50
 
 type LeadSource = 'google_places' | 'apify_google_maps' | 'apify_facebook_pages'
 
@@ -40,8 +42,8 @@ interface MonthlySpendResponse {
 type Step =
   | { kind: 'editing' }
   | { kind: 'estimating' }
-  | { kind: 'confirm'; estimate: RunEstimate; configYaml: string; apifySpend?: MonthlySpend }
-  | { kind: 'submitting'; estimate: RunEstimate; configYaml: string; apifySpend?: MonthlySpend }
+  | { kind: 'confirm'; estimate: RunEstimate; configYaml: string; apifySpend?: MonthlySpend; typeCount: number }
+  | { kind: 'submitting'; estimate: RunEstimate; configYaml: string; apifySpend?: MonthlySpend; typeCount: number }
 
 export default function ConfigBuilder() {
   const navigate = useNavigate()
@@ -54,9 +56,8 @@ export default function ConfigBuilder() {
   const [customTypes, setCustomTypes] = useState<CustomBusinessType[]>([])
   const [customInput, setCustomInput] = useState('')
 
-  // State selection (Google Places) — searches are state-wide
-  const [stateSelectValue, setStateSelectValue] = useState('')
-  const [selectedStates, setSelectedStates] = useState<string[]>([])
+  // State selection (Google Places) — single state, cycling approach
+  const [selectedState, setSelectedState] = useState('')
 
   // Apify Google Maps fields — state-wide search
   const [apifySearchTerm, setApifySearchTerm] = useState('')
@@ -67,7 +68,7 @@ export default function ConfigBuilder() {
   const [fbLocation, setFbLocation] = useState('')
 
   // Max results cap
-  const [maxResults, setMaxResults] = useState(DEFAULT_MAX_RESULTS)
+  const [maxResults, setMaxResults] = useState(DEFAULT_APIFY_MAX_RESULTS)
 
   // Launch flow state machine
   const [step, setStep] = useState<Step>({ kind: 'editing' })
@@ -117,19 +118,10 @@ export default function ConfigBuilder() {
     }
   }
 
-  // ── State picker (Google Places) ─────────────────────────────────────────────
+  // ── State picker (Google Places) — single-select ──────────────────────────
 
   function handleStateChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const abbreviation = e.target.value
-    if (!abbreviation) return
-    setSelectedStates(prev =>
-      prev.includes(abbreviation) ? prev : [...prev, abbreviation]
-    )
-    setStateSelectValue('')
-  }
-
-  function removeState(abbreviation: string) {
-    setSelectedStates(prev => prev.filter(s => s !== abbreviation))
+    setSelectedState(e.target.value)
   }
 
   // ── Apify Google Maps state picker ───────────────────────────────────────────
@@ -140,7 +132,7 @@ export default function ConfigBuilder() {
 
   // ── Config YAML builders ─────────────────────────────────────────────────────
 
-  function buildGooglePlacesYaml(extraType?: string): string {
+  function getAllSelectedTypes(extraType?: string): string[] {
     const builtInSelected = businessTypes
       .flatMap(g => g.types)
       .filter(t => selectedTypes.has(t))
@@ -148,19 +140,18 @@ export default function ConfigBuilder() {
       .map(ct => ct.name)
       .filter(name => selectedTypes.has(name))
     const extra = extraType && !selectedTypes.has(extraType) ? [extraType] : []
-    const allTypes = [...builtInSelected, ...customSelected, ...extra]
+    return [...builtInSelected, ...customSelected, ...extra]
+  }
 
-    const queries: string[] = []
-    for (const abbreviation of selectedStates) {
-      for (const type of allTypes) {
-        queries.push(`${type} in ${stateName(abbreviation)}`)
-      }
-    }
-
+  function buildGooglePlacesYaml(industry: string): string {
     return yaml.dump({
       source: 'google_places',
-      max_results_per_run: maxResults,
-      source_config: { queries },
+      max_results_per_run: CYCLING_MAX_RESULTS,
+      source_config: {
+        industry,
+        state: selectedState,
+        slots_per_run: CYCLING_SLOTS_PER_RUN,
+      },
     })
   }
 
@@ -184,17 +175,19 @@ export default function ConfigBuilder() {
     })
   }
 
-  function buildConfigYaml(extraType?: string): string {
-    if (source === 'apify_google_maps') return buildApifyGoogleMapsYaml()
-    if (source === 'apify_facebook_pages') return buildApifyFacebookPagesYaml()
-    return buildGooglePlacesYaml(extraType)
+  // Returns one YAML per selected type for Google Places (cycling), or single YAML for Apify
+  function buildConfigYamls(extraType?: string): string[] {
+    if (source === 'apify_google_maps') return [buildApifyGoogleMapsYaml()]
+    if (source === 'apify_facebook_pages') return [buildApifyFacebookPagesYaml()]
+    const allTypes = getAllSelectedTypes(extraType)
+    return allTypes.map(industry => buildGooglePlacesYaml(industry))
   }
 
   // ── Readiness check ──────────────────────────────────────────────────────────
 
   function isReadyToRun(): boolean {
     if (source === 'google_places') {
-      return (selectedTypes.size > 0 || !!customInput.trim()) && selectedStates.length > 0
+      return (selectedTypes.size > 0 || !!customInput.trim()) && !!selectedState
     }
     if (source === 'apify_google_maps') {
       return !!apifySearchTerm.trim() && !!apifyState
@@ -223,7 +216,15 @@ export default function ConfigBuilder() {
       }
     }
 
-    const configYaml = buildConfigYaml(pendingType)
+    const configYamls = buildConfigYamls(pendingType)
+    if (configYamls.length === 0) {
+      estimatingRef.current = false
+      return
+    }
+    // Use first YAML for estimate call (all types have same cost: slots_per_run × max_results)
+    const firstConfigYaml = configYamls[0]
+    const typeCount = configYamls.length
+
     setStep({ kind: 'estimating' })
 
     try {
@@ -233,7 +234,7 @@ export default function ConfigBuilder() {
         apiFetch('/api/runs/estimate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ config_yaml: configYaml }),
+          body: JSON.stringify({ config_yaml: firstConfigYaml }),
         }),
         isApify ? apiFetch('/api/runs/monthly-spend') : Promise.resolve(null),
       ])
@@ -250,7 +251,7 @@ export default function ConfigBuilder() {
         apifySpend = spendData.apify
       }
 
-      setStep({ kind: 'confirm', estimate, configYaml, apifySpend })
+      setStep({ kind: 'confirm', estimate, configYaml: firstConfigYaml, apifySpend, typeCount })
     } catch (e: unknown) {
       setRunError(e instanceof Error ? e.message : String(e))
       setStep({ kind: 'editing' })
@@ -261,11 +262,12 @@ export default function ConfigBuilder() {
 
   async function handleConfirmRun() {
     if (step.kind !== 'confirm') return
-    const { estimate, configYaml, apifySpend } = step
-    setStep({ kind: 'submitting', estimate, configYaml, apifySpend })
+    const { estimate, configYaml, apifySpend, typeCount } = step
+    setStep({ kind: 'submitting', estimate, configYaml, apifySpend, typeCount })
     setRunError(null)
 
     try {
+      // Submit first YAML only — multi-run submission is issue #20
       const resp = await apiFetch('/api/runs/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -279,7 +281,7 @@ export default function ConfigBuilder() {
       navigate('/leads', { state: { runId: newRun.id } })
     } catch (e: unknown) {
       setRunError(e instanceof Error ? e.message : String(e))
-      setStep({ kind: 'confirm', estimate, configYaml, apifySpend })
+      setStep({ kind: 'confirm', estimate, configYaml, apifySpend, typeCount })
     }
   }
 
@@ -385,15 +387,15 @@ export default function ConfigBuilder() {
             />
           </div>
 
-          {/* State Picker — searches run state-wide */}
+          {/* State Picker — single-select for cycling */}
           <div className="lp-card">
-            <h2 className="lp-section-title">States</h2>
-            <div style={{ maxWidth: '272px', marginBottom: '16px' }}>
+            <h2 className="lp-section-title">State</h2>
+            <div style={{ maxWidth: '272px' }}>
               <label htmlFor="state-select" className="lp-label">Select state</label>
               <select
                 id="state-select"
                 className="lp-select"
-                value={stateSelectValue}
+                value={selectedState}
                 onChange={handleStateChange}
               >
                 <option value="">-- select state --</option>
@@ -404,27 +406,6 @@ export default function ConfigBuilder() {
                 ))}
               </select>
             </div>
-
-            {selectedStates.length > 0 && (
-              <ul
-                aria-label="Selected states"
-                style={{ listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}
-              >
-                {selectedStates.map(abbreviation => (
-                  <li key={abbreviation} className="lp-pill">
-                    {stateName(abbreviation)}
-                    <button
-                      type="button"
-                      className="lp-pill-remove"
-                      aria-label={`Remove ${stateName(abbreviation)}`}
-                      onClick={() => removeState(abbreviation)}
-                    >
-                      ✕
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
         </>
       )}
@@ -539,11 +520,20 @@ export default function ConfigBuilder() {
           <div className="lp-card" style={{ maxWidth: '440px' }}>
             <h2 className="lp-section-title" style={{ marginBottom: '12px' }}>Estimated Cost</h2>
 
+            {/* Google Places cycling confirm display */}
             {!isApifySource && (
               <>
-                <p style={{ marginBottom: '4px', color: 'var(--color-text-secondary)' }}>{step.estimate.query_count} queries</p>
-                <p style={{ marginBottom: '4px', color: 'var(--color-text-secondary)' }}>{step.estimate.estimated_results} results</p>
-                <p style={{ marginBottom: '16px', color: 'var(--color-text-secondary)' }}>${step.estimate.estimated_cost_usd.toFixed(3)} estimated API cost</p>
+                <p style={{ marginBottom: step.typeCount > 1 ? '4px' : '16px', color: 'var(--color-text-secondary)' }}>
+                  {CYCLING_SLOTS_PER_RUN} slots in {stateName(selectedState)}
+                  {' · '}~{step.estimate.estimated_results} results
+                  {' · '}~${step.estimate.estimated_cost_usd.toFixed(2)} estimated
+                </p>
+                {step.typeCount > 1 && (
+                  <p style={{ marginBottom: '16px', color: 'var(--color-text-secondary)' }}>
+                    {step.typeCount} types selected
+                    {' · '}~${(step.typeCount * step.estimate.estimated_cost_usd).toFixed(2)} total estimated
+                  </p>
+                )}
               </>
             )}
 

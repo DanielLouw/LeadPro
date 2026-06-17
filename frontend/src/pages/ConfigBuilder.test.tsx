@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import ConfigBuilder from './ConfigBuilder'
@@ -74,16 +74,30 @@ describe('ConfigBuilder - custom business type', () => {
   })
 })
 
-// -- 5. Selecting a state adds it to the selection (state-wide search) --------
+// -- 5. State picker — single-select (issue #19) -------------------------------
 describe('ConfigBuilder - state selection', () => {
-  it('selecting a state adds it to the selected states list', async () => {
+  it('state picker renders all 50 states as options', () => {
+    renderConfigBuilder()
+    const stateSelect = screen.getByRole('combobox', { name: /select state/i }) as HTMLSelectElement
+    // 50 states + the blank placeholder option
+    expect(stateSelect.options.length).toBe(51)
+  })
+
+  it('selecting a state sets a single selected state', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
-    const stateSelect = screen.getByRole('combobox', { name: /select state/i })
+    const stateSelect = screen.getByRole('combobox', { name: /select state/i }) as HTMLSelectElement
     await user.selectOptions(stateSelect, 'TX')
+    expect(stateSelect.value).toBe('TX')
+  })
 
-    const selectedStates = screen.getByRole('list', { name: /selected states/i })
-    expect(within(selectedStates).getByText(/Texas/i)).toBeInTheDocument()
+  it('selecting a different state replaces the previous selection', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+    const stateSelect = screen.getByRole('combobox', { name: /select state/i }) as HTMLSelectElement
+    await user.selectOptions(stateSelect, 'TX')
+    await user.selectOptions(stateSelect, 'CA')
+    expect(stateSelect.value).toBe('CA')
   })
 
   it('does not render a city dropdown', () => {
@@ -91,25 +105,11 @@ describe('ConfigBuilder - state selection', () => {
     expect(screen.queryByRole('combobox', { name: /select city/i })).not.toBeInTheDocument()
   })
 
-  it('allows selecting multiple states', async () => {
+  it('does not render a selected-states pill list', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
     const stateSelect = screen.getByRole('combobox', { name: /select state/i })
     await user.selectOptions(stateSelect, 'TX')
-    await user.selectOptions(stateSelect, 'CA')
-
-    const selectedStates = screen.getByRole('list', { name: /selected states/i })
-    expect(within(selectedStates).getByText(/Texas/i)).toBeInTheDocument()
-    expect(within(selectedStates).getByText(/California/i)).toBeInTheDocument()
-  })
-
-  it('a selected state can be removed', async () => {
-    const user = userEvent.setup()
-    renderConfigBuilder()
-    const stateSelect = screen.getByRole('combobox', { name: /select state/i })
-    await user.selectOptions(stateSelect, 'TX')
-
-    await user.click(screen.getByRole('button', { name: /remove texas/i }))
     expect(screen.queryByRole('list', { name: /selected states/i })).not.toBeInTheDocument()
   })
 })
@@ -145,12 +145,12 @@ describe('ConfigBuilder - Run button present', () => {
   })
 })
 
-// -- 10. Run button fetches estimate and displays it inline (issue #0014) -----
+// -- 10. Run button fetches estimate and displays cycling confirm step (issue #19) -----
 describe('ConfigBuilder - Run button fetches estimate', () => {
   const estimateResponse = {
-    query_count: 2,
-    estimated_results: 40,
-    estimated_cost_usd: 0.064,
+    query_count: 3,
+    estimated_results: 150,
+    estimated_cost_usd: 0.24,
   }
 
   beforeEach(() => {
@@ -181,7 +181,7 @@ describe('ConfigBuilder - Run button fetches estimate', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
   }
 
-  it('clicking Run fetches POST /api/runs/estimate and displays query count, results, and cost', async () => {
+  it('clicking Run fetches POST /api/runs/estimate and displays cycling confirm step', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
     await selectTypeAndState(user)
@@ -189,10 +189,10 @@ describe('ConfigBuilder - Run button fetches estimate', () => {
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 
     await waitFor(() =>
-      expect(screen.getByText(/2 queries/i)).toBeInTheDocument()
+      expect(screen.getByText(/3 slots in Texas/i)).toBeInTheDocument()
     )
-    expect(screen.getByText(/40 results/i)).toBeInTheDocument()
-    expect(screen.getByText(/\$0\.064/i)).toBeInTheDocument()
+    expect(screen.getByText(/~150 results/i)).toBeInTheDocument()
+    expect(screen.getByText(/\$0\.24/i)).toBeInTheDocument()
   })
 
   it('shows "Confirm & start run" button after estimate is displayed', async () => {
@@ -214,13 +214,13 @@ describe('ConfigBuilder - Run button fetches estimate', () => {
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
     await waitFor(() =>
-      expect(screen.getByText(/2 queries/i)).toBeInTheDocument()
+      expect(screen.getByText(/3 slots in Texas/i)).toBeInTheDocument()
     )
 
     await user.click(screen.getByRole('button', { name: /^cancel$/i }))
 
     // Estimate panel gone
-    expect(screen.queryByText(/2 queries/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/3 slots in Texas/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /confirm & start run/i })).not.toBeInTheDocument()
     // Run button back
     expect(screen.getByRole('button', { name: /^run$/i })).toBeInTheDocument()
@@ -331,11 +331,11 @@ describe('ConfigBuilder — business type chip grid', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Issue #0023: Config YAML shape
+// Issue #19: Cycling YAML shape for Google Places
 // ---------------------------------------------------------------------------
 
-describe('ConfigBuilder — config YAML shape', () => {
-  const mockEstimate = { query_count: 1, estimated_results: 10, estimated_cost_usd: 0.016 }
+describe('ConfigBuilder — cycling YAML shape (issue #19)', () => {
+  const mockEstimate = { query_count: 3, estimated_results: 150, estimated_cost_usd: 0.24 }
 
   beforeEach(() => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -358,11 +358,10 @@ describe('ConfigBuilder — config YAML shape', () => {
 
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('Google Places YAML has nested source_config.queries with state-wide queries', async () => {
+  it('Google Places estimate call uses cycling shape (industry, state, slots_per_run)', async () => {
     const user = userEvent.setup()
     renderConfigBuilder()
 
-    // Select plumbers + Texas (state-wide)
     await user.click(screen.getByRole('checkbox', { name: /plumbers/i }))
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
 
@@ -376,13 +375,78 @@ describe('ConfigBuilder — config YAML shape', () => {
       })
       expect(estimateCall).toBeDefined()
       const body = JSON.parse((estimateCall![1] as RequestInit).body as string)
-      const parsed = body.config_yaml
-      expect(parsed).toContain('source: google_places')
-      expect(parsed).toContain('source_config:')
-      expect(parsed).toContain('queries:')
-      expect(parsed).toContain('plumbers in Texas')
+      const yamlStr = body.config_yaml
+      expect(yamlStr).toContain('source: google_places')
+      expect(yamlStr).toContain('max_results_per_run: 50')
+      expect(yamlStr).toContain('source_config:')
+      expect(yamlStr).toContain('industry: plumbers')
+      expect(yamlStr).toContain('state: TX')
+      expect(yamlStr).toContain('slots_per_run: 3')
+      expect(yamlStr).not.toContain('queries:')
     })
   })
+
+  it('confirm step displays "3 slots in [StateName]", estimated results, and estimated cost', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+
+    await user.click(screen.getByRole('checkbox', { name: /plumbers/i }))
+    await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/3 slots in Texas/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText(/~150 results/i)).toBeInTheDocument()
+    expect(screen.getByText(/~\$0\.24/i)).toBeInTheDocument()
+  })
+
+  it('confirm step for multiple types shows combined total line', async () => {
+    const user = userEvent.setup()
+    renderConfigBuilder()
+
+    // Select 3 types
+    await user.click(screen.getByRole('checkbox', { name: /plumbers/i }))
+    await user.click(screen.getByRole('checkbox', { name: /hvac companies/i }))
+    await user.click(screen.getByRole('checkbox', { name: /electricians/i }))
+    await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
+    await user.click(screen.getByRole('button', { name: /^run$/i }))
+
+    // Combined total: 3 types × $0.24 = $0.72
+    await waitFor(() =>
+      expect(screen.getByText(/3 types selected/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText(/\$0\.72/i)).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Issue #0023: Config YAML shape — Apify sources unaffected
+// ---------------------------------------------------------------------------
+
+describe('ConfigBuilder — Apify YAML shape (unaffected by #19)', () => {
+  const mockEstimate = { query_count: 1, estimated_results: 10, estimated_cost_usd: 0.016 }
+
+  beforeEach(() => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/runs/estimate') && init?.method === 'POST') {
+        return new Response(JSON.stringify(mockEstimate), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('/runs/') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({ id: 5, status: 'pending', total_leads: 0, config_yaml: '', error_message: null }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+  })
+
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('Apify Google Maps YAML has source: apify_google_maps and source_config with search_term/state, no city', async () => {
     const user = userEvent.setup()
@@ -475,7 +539,6 @@ describe('ConfigBuilder — Apify confirm step shows monthly budget', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /lead source/i }), 'apify_google_maps')
     await user.type(screen.getByRole('textbox', { name: /search term/i }), 'plumbers')
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
-    
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 
@@ -512,7 +575,6 @@ describe('ConfigBuilder — Apify confirm step shows monthly budget', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /lead source/i }), 'apify_google_maps')
     await user.type(screen.getByRole('textbox', { name: /search term/i }), 'plumbers')
     await user.selectOptions(screen.getByRole('combobox', { name: /select state/i }), 'TX')
-    
 
     await user.click(screen.getByRole('button', { name: /^run$/i }))
 
