@@ -54,6 +54,7 @@ export default function AllLeads() {
 
   // Toast queue
   const [toasts, setToasts] = useState<ToastItem[]>([])
+  const [exportingCsv, setExportingCsv] = useState(false)
 
   const addToast = useCallback((message: string, type: ToastItem['type'] = 'success') => {
     setToasts(prev => [...prev, makeToast(message, type)])
@@ -131,6 +132,28 @@ export default function AllLeads() {
     setSelectedStatuses(prev =>
       prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
     )
+  }
+
+  function handleExportCsv() {
+    setExportingCsv(true)
+    const url = buildAllLeadsUrl(selectedSignalTypes, selectedStatuses, selectedState ? [selectedState] : [], debouncedSearch, sort, '/api/leads/export')
+    apiFetch(url)
+      .then(r => {
+        if (!r.ok) throw new Error(`Export failed: ${r.status}`)
+        return r.blob()
+      })
+      .then(blob => {
+        const objectUrl = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = 'all_leads.csv'
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        URL.revokeObjectURL(objectUrl)
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setExportingCsv(false))
   }
 
   function handleLeadUpdated(updated: Lead) {
@@ -265,14 +288,9 @@ export default function AllLeads() {
                 </span>
               ))}
             </p>
-            <a
-              href={buildAllLeadsUrl(selectedSignalTypes, selectedStatuses, selectedState ? [selectedState] : [], debouncedSearch, sort, '/api/leads/export')}
-              download="all_leads.csv"
-              className="lp-btn-secondary"
-              style={{ fontSize: '13px', padding: '4px 12px' }}
-            >
-              Export CSV
-            </a>
+            <button className="btn btn-secondary" onClick={handleExportCsv} disabled={exportingCsv}>
+              {exportingCsv ? <><Spinner />Exporting…</> : 'Export CSV'}
+            </button>
           </section>
 
           <table aria-label="All leads" className="lp-table">
