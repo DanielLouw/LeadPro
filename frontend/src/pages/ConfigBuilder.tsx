@@ -587,20 +587,22 @@ export default function ConfigBuilder() {
         </div>
       )}
 
-      {/* Max results cap */}
-      <div className="lp-card" style={{ paddingBottom: '20px' }}>
-        <label htmlFor="max-results-cap" className="lp-label">Max results cap</label>
-        <input
-          id="max-results-cap"
-          type="number"
-          className="lp-input"
-          style={{ maxWidth: '160px' }}
-          min={1}
-          value={maxResults}
-          onChange={e => setMaxResults(Number(e.target.value))}
-          aria-label="Max results cap"
-        />
-      </div>
+      {/* Max results cap — Apify sources only (Google Places uses a fixed cycling cap) */}
+      {isApifySource && (
+        <div className="lp-card" style={{ paddingBottom: '20px' }}>
+          <label htmlFor="max-results-cap" className="lp-label">Max results cap</label>
+          <input
+            id="max-results-cap"
+            type="number"
+            className="lp-input"
+            style={{ maxWidth: '160px' }}
+            min={1}
+            value={maxResults}
+            onChange={e => setMaxResults(Number(e.target.value))}
+            aria-label="Max results cap"
+          />
+        </div>
+      )}
 
       {/* Launch flow */}
       {step.kind === 'editing' && (
