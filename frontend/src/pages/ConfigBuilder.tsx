@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as yaml from 'js-yaml'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../utils/apiFetch'
@@ -121,22 +121,31 @@ export default function ConfigBuilder() {
 
   // ── State picker (Google Places) — single-select ──────────────────────────
 
-  function handleStateChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const state = e.target.value
-    setSelectedState(state)
-    setCountyCoverage(null)
-    if (state) {
-      void (async () => {
-        try {
-          const r = await apiFetch(`/api/runs/county-coverage?state=${state}`)
-          if (!r.ok) return
-          const data = await r.json()
-          setCountyCoverage({ total: data.total_counties, searched: data.searched_counties })
-        } catch {
-          // leave badge hidden on network/parse failure
-        }
-      })()
+  // Re-fetch county coverage whenever selectedState changes (covers component
+  // re-mounts and returning to the page after a run completes).
+  useEffect(() => {
+    if (!selectedState) {
+      setCountyCoverage(null)
+      return
     }
+    let cancelled = false
+    void (async () => {
+      try {
+        const r = await apiFetch(`/api/runs/county-coverage?state=${selectedState}`)
+        if (!r.ok || cancelled) return
+        const data = await r.json()
+        if (!cancelled) {
+          setCountyCoverage({ total: data.total_counties, searched: data.searched_counties })
+        }
+      } catch {
+        // leave badge hidden on network/parse failure
+      }
+    })()
+    return () => { cancelled = true }
+  }, [selectedState])
+
+  function handleStateChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setSelectedState(e.target.value)
   }
 
   // ── Apify Google Maps state picker ───────────────────────────────────────────
