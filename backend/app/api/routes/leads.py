@@ -155,6 +155,60 @@ def get_all_leads(
     return query.all()
 
 
+@router.get("/export")
+def export_all_leads_csv(
+    signal_types: Annotated[list[str], Query()] = None,
+    statuses: Annotated[list[str], Query()] = None,
+    states: Annotated[list[str], Query()] = None,
+    search: str = "",
+    sort: str = "gap_score",
+    db: Session = Depends(get_db),
+):
+    signal_types = signal_types or []
+    statuses = statuses or []
+    states = states or []
+
+    if statuses:
+        _validate_statuses(statuses)
+    _validate_sort(sort)
+
+    query = db.query(Lead).options(*_lead_options())
+
+    if states:
+        query = query.filter(Lead.state.in_(states))
+    if search.strip():
+        query = query.filter(Lead.name.ilike(f"%{search.strip()}%"))
+
+    query = _apply_filters_and_sort(query, signal_types=signal_types, statuses=statuses, sort=sort)
+
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=["name", "address", "city", "state", "phone", "email", "gap_score", "gap_signals", "status", "notes"],
+    )
+    writer.writeheader()
+    for lead in query.all():
+        writer.writerow({
+            "name": lead.name,
+            "address": lead.address or "",
+            "city": lead.city or "",
+            "state": lead.state or "",
+            "phone": lead.phone or "",
+            "email": lead.email or "",
+            "gap_score": lead.gap_score,
+            "gap_signals": ", ".join(s.description for s in lead.gap_signals),
+            "status": lead.status,
+            "notes": lead.note.content if lead.note else "",
+        })
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=all_leads.csv"},
+    )
+
+
 @router.get("/run/{run_id}", response_model=list[LeadResponse])
 def get_leads_for_run(
     run_id: int,

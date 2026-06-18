@@ -31,6 +31,7 @@ function buildAllLeadsUrl(
   states: string[],
   search: string,
   sort: SortField,
+  path = '/api/leads/',
 ): string {
   const params = new URLSearchParams()
   for (const st of signalTypes) params.append('signal_types', st)
@@ -38,7 +39,7 @@ function buildAllLeadsUrl(
   for (const st of states) params.append('states', st)
   if (search.trim()) params.set('search', search.trim())
   params.set('sort', sort)
-  return `/api/leads/?${params.toString()}`
+  return `${path}?${params.toString()}`
 }
 
 // ---------------------------------------------------------------------------
@@ -255,8 +256,8 @@ export default function AllLeads() {
       {leads.length > 0 && (
         <>
           {/* Summary */}
-          <section aria-label="Summary" style={{ margin: '16px 0 8px' }}>
-            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+          <section aria-label="Summary" style={{ margin: '16px 0 8px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
               <strong>{leads.length} leads</strong>
               {ALL_STATUSES.filter(s => statusCounts[s]).map(s => (
                 <span key={s} style={{ marginLeft: '0.75rem' }}>
@@ -264,6 +265,14 @@ export default function AllLeads() {
                 </span>
               ))}
             </p>
+            <a
+              href={buildAllLeadsUrl(selectedSignalTypes, selectedStatuses, selectedState ? [selectedState] : [], debouncedSearch, sort, '/api/leads/export')}
+              download="all_leads.csv"
+              className="lp-btn-secondary"
+              style={{ fontSize: '13px', padding: '4px 12px' }}
+            >
+              Export CSV
+            </a>
           </section>
 
           <table aria-label="All leads" className="lp-table">
