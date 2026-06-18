@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.main import app
 from app.budget import estimate_run_cost
 from app.database import get_db
-from app.models import Base, Run, Lead, GapSignal, RunStatus
+from app.models import Base, Run, Lead, GapSignal, RunStatus, SearchSlot
 
 
 # ---------------------------------------------------------------------------
@@ -315,3 +315,61 @@ def test_estimate_cycling_config_invalid_slots_per_run_returns_400(client):
     )
     resp = client.post("/api/runs/estimate", json={"config_yaml": config})
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# GET /runs/county-coverage
+# ---------------------------------------------------------------------------
+
+def test_county_coverage_no_slots_returns_total_and_zero_searched(client):
+    """Fresh state with no search_slots returns correct total counties and 0 searched."""
+    resp = client.get("/api/runs/county-coverage?state=TX")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_counties"] == 254
+    assert data["searched_counties"] == 0
+
+
+def test_county_coverage_unsearched_slots_not_counted(client, test_db):
+    """Slots with search_count=0 do not contribute to searched_counties."""
+    db = test_db()
+    try:
+        db.add(SearchSlot(state="TX", county="Travis County", industry="plumbers", search_term="plumbers in Travis County TX", search_count=0))
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get("/api/runs/county-coverage?state=TX")
+    assert resp.status_code == 200
+    assert resp.json()["searched_counties"] == 0
+
+
+def test_county_coverage_same_county_multiple_industries_counts_once(client, test_db):
+    """A county searched under two different industries counts as 1 searched county."""
+    db = test_db()
+    try:
+        db.add(SearchSlot(state="TX", county="Travis County", industry="plumbers", search_term="plumbers in Travis County TX", search_count=1))
+        db.add(SearchSlot(state="TX", county="Travis County", industry="electricians", search_term="electricians in Travis County TX", search_count=2))
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get("/api/runs/county-coverage?state=TX")
+    assert resp.status_code == 200
+    assert resp.json()["searched_counties"] == 1
+
+
+def test_county_coverage_unknown_state_returns_zeros(client):
+    """A state code not in the COUNTIES dict returns total_counties=0, searched_counties=0."""
+    resp = client.get("/api/runs/county-coverage?state=ZZ")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_counties"] == 0
+    assert data["searched_counties"] == 0
+
+
+def test_county_coverage_lowercase_state_code_accepted(client):
+    """Lowercase state code is treated the same as uppercase."""
+    resp = client.get("/api/runs/county-coverage?state=tx")
+    assert resp.status_code == 200
+    assert resp.json()["total_counties"] == 254

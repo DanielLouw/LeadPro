@@ -13,10 +13,11 @@ from app.config import (
     DEFAULT_MAX_RESULTS_PER_RUN,
     PLACES_RESULTS_PER_REQUEST,
 )
+from app.data.counties import COUNTIES
 from app.database import get_db
 from app.lead_pipeline.adapters import ADAPTER_REGISTRY
 from app.lead_pipeline.pipeline import execute_run
-from app.models import Lead, Run, Settings
+from app.models import Lead, Run, SearchSlot, Settings
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -59,6 +60,24 @@ class SpendGroupResponse(BaseModel):
 class MonthlySpendResponse(BaseModel):
     google_places: SpendGroupResponse
     apify: SpendGroupResponse
+
+
+class CountyCoverageResponse(BaseModel):
+    total_counties: int
+    searched_counties: int
+
+
+@router.get("/county-coverage", response_model=CountyCoverageResponse)
+def get_county_coverage(state: str = Query(..., min_length=2, max_length=2), db: Session = Depends(get_db)) -> CountyCoverageResponse:
+    state = state.upper()
+    total = len(COUNTIES.get(state, []))
+    searched = (
+        db.query(SearchSlot.county)
+        .filter(SearchSlot.state == state, SearchSlot.search_count > 0)
+        .distinct()
+        .count()
+    )
+    return CountyCoverageResponse(total_counties=total, searched_counties=searched)
 
 
 @router.get("/monthly-spend", response_model=MonthlySpendResponse)

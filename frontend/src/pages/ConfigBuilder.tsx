@@ -58,6 +58,7 @@ export default function ConfigBuilder() {
 
   // State selection (Google Places) — single state, cycling approach
   const [selectedState, setSelectedState] = useState('')
+  const [countyCoverage, setCountyCoverage] = useState<{ total: number; searched: number } | null>(null)
 
   // Apify Google Maps fields — state-wide search
   const [apifySearchTerm, setApifySearchTerm] = useState('')
@@ -121,7 +122,21 @@ export default function ConfigBuilder() {
   // ── State picker (Google Places) — single-select ──────────────────────────
 
   function handleStateChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    setSelectedState(e.target.value)
+    const state = e.target.value
+    setSelectedState(state)
+    setCountyCoverage(null)
+    if (state) {
+      void (async () => {
+        try {
+          const r = await apiFetch(`/api/runs/county-coverage?state=${state}`)
+          if (!r.ok) return
+          const data = await r.json()
+          setCountyCoverage({ total: data.total_counties, searched: data.searched_counties })
+        } catch {
+          // leave badge hidden on network/parse failure
+        }
+      })()
+    }
   }
 
   // ── Apify Google Maps state picker ───────────────────────────────────────────
@@ -420,21 +435,42 @@ export default function ConfigBuilder() {
           {/* State Picker — single-select for cycling */}
           <div className="lp-card">
             <h2 className="lp-section-title">State</h2>
-            <div style={{ maxWidth: '272px' }}>
-              <label htmlFor="state-select" className="lp-label">Select state</label>
-              <select
-                id="state-select"
-                className="lp-select"
-                value={selectedState}
-                onChange={handleStateChange}
-              >
-                <option value="">-- select state --</option>
-                {stateCities.map(s => (
-                  <option key={s.abbreviation} value={s.abbreviation}>
-                    {s.name} ({s.abbreviation})
-                  </option>
-                ))}
-              </select>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ maxWidth: '272px' }}>
+                <label htmlFor="state-select" className="lp-label">Select state</label>
+                <select
+                  id="state-select"
+                  className="lp-select"
+                  value={selectedState}
+                  onChange={handleStateChange}
+                >
+                  <option value="">-- select state --</option>
+                  {stateCities.map(s => (
+                    <option key={s.abbreviation} value={s.abbreviation}>
+                      {s.name} ({s.abbreviation})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {countyCoverage !== null && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  background: 'var(--lp-surface-2, #f3f4f6)',
+                  fontSize: '13px',
+                  color: 'var(--lp-text-muted, #6b7280)',
+                  marginBottom: '2px',
+                  whiteSpace: 'nowrap',
+                }}>
+                  <span style={{ fontWeight: 600, color: 'var(--lp-text, #111827)' }}>
+                    {countyCoverage.searched} / {countyCoverage.total}
+                  </span>
+                  counties queried
+                </div>
+              )}
             </div>
           </div>
         </>
