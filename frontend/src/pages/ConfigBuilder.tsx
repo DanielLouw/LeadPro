@@ -58,7 +58,7 @@ export default function ConfigBuilder() {
 
   // State selection (Google Places) — single state, cycling approach
   const [selectedState, setSelectedState] = useState('')
-  const [countyCoverage, setCountyCoverage] = useState<{ total: number; searched: number } | null>(null)
+  const [countyCoverage, setCountyCoverage] = useState<{ industry: string; total: number; searched: number }[] | null>(null)
 
   // Apify Google Maps fields — state-wide search
   const [apifySearchTerm, setApifySearchTerm] = useState('')
@@ -121,8 +121,7 @@ export default function ConfigBuilder() {
 
   // ── State picker (Google Places) — single-select ──────────────────────────
 
-  // Re-fetch county coverage whenever selectedState changes (covers component
-  // re-mounts and returning to the page after a run completes).
+  // Re-fetch county coverage whenever selectedState or selectedTypes changes.
   useEffect(() => {
     if (!selectedState) {
       setCountyCoverage(null)
@@ -131,18 +130,38 @@ export default function ConfigBuilder() {
     let cancelled = false
     void (async () => {
       try {
-        const r = await apiFetch(`/api/runs/county-coverage?state=${selectedState}`)
-        if (!r.ok || cancelled) return
-        const data = await r.json()
-        if (!cancelled) {
-          setCountyCoverage({ total: data.total_counties, searched: data.searched_counties })
+        const types = Array.from(selectedTypes)
+        if (types.length === 0) {
+          // Aggregate: no industry filter
+          const r = await apiFetch(`/api/runs/county-coverage?state=${selectedState}`)
+          if (!r.ok || cancelled) return
+          const data = await r.json()
+          if (!cancelled) {
+            setCountyCoverage([{ industry: '', total: data.total_counties, searched: data.searched_counties }])
+          }
+        } else {
+          // Per-type: one fetch per selected industry
+          const results = await Promise.all(
+            types.map(async (industry) => {
+              const r = await apiFetch(
+                `/api/runs/county-coverage?state=${selectedState}&industry=${encodeURIComponent(industry)}`
+              )
+              if (!r.ok) return null
+              const data = await r.json()
+              return { industry, total: data.total_counties as number, searched: data.searched_counties as number }
+            })
+          )
+          if (!cancelled) {
+            const valid = results.filter((x): x is { industry: string; total: number; searched: number } => x !== null)
+            setCountyCoverage(valid.length > 0 ? valid : null)
+          }
         }
       } catch {
         // leave badge hidden on network/parse failure
       }
     })()
     return () => { cancelled = true }
-  }, [selectedState])
+  }, [selectedState, selectedTypes])
 
   function handleStateChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setSelectedState(e.target.value)
@@ -463,21 +482,35 @@ export default function ConfigBuilder() {
               </div>
               {countyCoverage !== null && (
                 <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  background: 'var(--lp-surface-2, #f3f4f6)',
-                  fontSize: '13px',
-                  color: 'var(--lp-text-muted, #6b7280)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
                   marginBottom: '2px',
-                  whiteSpace: 'nowrap',
                 }}>
-                  <span style={{ fontWeight: 600, color: 'var(--lp-text, #111827)' }}>
-                    {countyCoverage.searched} / {countyCoverage.total}
-                  </span>
-                  counties queried
+                  {countyCoverage.map((entry) => (
+                    <div
+                      key={entry.industry || '__aggregate__'}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        background: 'var(--lp-surface-2, #f3f4f6)',
+                        fontSize: '13px',
+                        color: 'var(--lp-text-muted, #6b7280)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {entry.industry && (
+                        <span style={{ color: 'var(--lp-text-muted, #6b7280)' }}>{entry.industry}:</span>
+                      )}
+                      <span style={{ fontWeight: 600, color: 'var(--lp-text, #111827)' }}>
+                        {entry.searched} / {entry.total}
+                      </span>
+                      counties queried
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

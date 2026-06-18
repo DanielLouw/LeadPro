@@ -68,15 +68,20 @@ class CountyCoverageResponse(BaseModel):
 
 
 @router.get("/county-coverage", response_model=CountyCoverageResponse)
-def get_county_coverage(state: str = Query(..., min_length=2, max_length=2), db: Session = Depends(get_db)) -> CountyCoverageResponse:
+def get_county_coverage(
+    state: str = Query(..., min_length=2, max_length=2),
+    industry: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> CountyCoverageResponse:
     state = state.upper()
     total = len(COUNTIES.get(state, []))
-    searched = (
+    q = (
         db.query(SearchSlot.county)
         .filter(SearchSlot.state == state, SearchSlot.search_count > 0)
-        .distinct()
-        .count()
     )
+    if industry is not None:
+        q = q.filter(SearchSlot.industry == industry)
+    searched = q.distinct().count()
     return CountyCoverageResponse(total_counties=total, searched_counties=searched)
 
 
