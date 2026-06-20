@@ -34,6 +34,7 @@ HARD_SIGNALS = {
     "no_https": "Website does not use HTTPS",
     "low_pagespeed": "Mobile PageSpeed score below 50",
     "few_google_reviews": "Fewer than 20 Google reviews — minimal local search visibility",
+    "social_as_website": "Website URL points to a social media or directory page, not a real website",
 }
 
 SOFT_SIGNALS = {
@@ -67,6 +68,7 @@ SIGNAL_SERVICE: dict[str, str] = {
     "no_robots_txt": "SEO Package",
     "no_schema_markup": "SEO Package",
     "few_google_reviews": "SEO Package",
+    "social_as_website": "Website Build",
 }
 
 SIGNAL_SALES_COPY: dict[str, str] = {
@@ -174,8 +176,28 @@ SIGNAL_SALES_COPY: dict[str, str] = {
         "review generation strategy and Google Business Profile optimisation can close "
         "this gap quickly and create visible results within weeks."
     ),
+    "social_as_website": (
+        "This business is using a Facebook page (or similar social/directory profile) "
+        "as a substitute for a real website. Every visitor who finds them online lands "
+        "on a platform the business doesn't own or control — no custom domain, no SEO, "
+        "no ability to capture leads directly. The conversation opens naturally: a "
+        "professionally built website gives them a home on the internet that's actually "
+        "theirs. A Website Build is the entry point."
+    ),
 }
 
+
+SOCIAL_DOMAINS = frozenset({
+    "facebook.com",
+    "instagram.com",
+    "twitter.com",
+    "x.com",
+    "yelp.com",
+    "linkedin.com",
+    "nextdoor.com",
+    "tiktok.com",
+    "maps.google.com",
+})
 
 _ALL_SIGNAL_TYPES = set(HARD_SIGNALS) | set(SOFT_SIGNALS)
 assert SIGNAL_SERVICE.keys() == _ALL_SIGNAL_TYPES, (
@@ -245,6 +267,24 @@ async def analyze(url: str | None) -> AnalysisResult:
             signal_type="no_website",
             is_hard=True,
             description=HARD_SIGNALS["no_website"],
+        )
+        return AnalysisResult(
+            gap_signals=[signal],
+            gap_score=HARD_SIGNAL_WEIGHT,
+            has_hard_signal=True,
+        )
+
+    # Check if the URL points to a known social/directory domain — if so, return
+    # immediately without making any HTTP request.
+    parsed_for_social = urlparse(url if url.startswith(("http://", "https://")) else f"https://{url}")
+    netloc = parsed_for_social.netloc.lower()
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
+    if netloc in SOCIAL_DOMAINS:
+        signal = GapSignalResult(
+            signal_type="social_as_website",
+            is_hard=True,
+            description=HARD_SIGNALS["social_as_website"],
         )
         return AnalysisResult(
             gap_signals=[signal],

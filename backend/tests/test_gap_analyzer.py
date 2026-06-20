@@ -1057,3 +1057,128 @@ async def test_cwv_graceful_when_audits_missing(httpx_mock):
     assert "high_cls" not in signal_types
     assert "slow_inp" not in signal_types
     assert isinstance(result.gap_score, float)
+
+
+# ===========================================================================
+# SOCIAL_AS_WEBSITE SIGNAL TESTS
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# social_as_website: facebook.com URL → hard signal, no HTTP fetch
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_social_as_website_facebook(httpx_mock):
+    """analyze() with a facebook.com URL returns social_as_website hard signal."""
+    # No HTTP mocks registered — if a fetch were made, httpx_mock would raise.
+    result = await analyze("https://www.facebook.com/mybusiness")
+
+    assert result.has_hard_signal is True
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" in signal_types
+
+    sig = next(s for s in result.gap_signals if s.signal_type == "social_as_website")
+    assert sig.is_hard is True
+    assert sig.description
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_instagram(httpx_mock):
+    """analyze() with an instagram.com URL returns social_as_website hard signal."""
+    result = await analyze("https://www.instagram.com/mybusiness")
+
+    assert result.has_hard_signal is True
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" in signal_types
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_twitter(httpx_mock):
+    """analyze() with a twitter.com URL returns social_as_website hard signal."""
+    result = await analyze("https://twitter.com/mybusiness")
+
+    assert result.has_hard_signal is True
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" in signal_types
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_x_com(httpx_mock):
+    """analyze() with an x.com URL returns social_as_website hard signal."""
+    result = await analyze("https://x.com/mybusiness")
+
+    assert result.has_hard_signal is True
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" in signal_types
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_yelp(httpx_mock):
+    """analyze() with a yelp.com URL returns social_as_website hard signal."""
+    result = await analyze("https://www.yelp.com/biz/mybusiness")
+
+    assert result.has_hard_signal is True
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" in signal_types
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_linkedin(httpx_mock):
+    """analyze() with a linkedin.com URL returns social_as_website hard signal."""
+    result = await analyze("https://www.linkedin.com/company/mybusiness")
+
+    assert result.has_hard_signal is True
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" in signal_types
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_nextdoor(httpx_mock):
+    """analyze() with a nextdoor.com URL returns social_as_website hard signal."""
+    result = await analyze("https://nextdoor.com/pages/mybusiness")
+
+    assert result.has_hard_signal is True
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" in signal_types
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_tiktok(httpx_mock):
+    """analyze() with a tiktok.com URL returns social_as_website hard signal."""
+    result = await analyze("https://www.tiktok.com/@mybusiness")
+
+    assert result.has_hard_signal is True
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" in signal_types
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_no_signal_for_real_site(httpx_mock, no_pagespeed_key):
+    """analyze() with a real business URL does NOT return social_as_website."""
+    httpx_mock.add_response(url="https://example.com", status_code=200, text=GOOD_HTML)
+    httpx_mock.add_response(url="https://example.com/sitemap.xml", status_code=200)
+    httpx_mock.add_response(url="https://example.com/robots.txt", status_code=200)
+
+    result = await analyze("https://example.com")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" not in signal_types
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_www_prefix_stripped(httpx_mock):
+    """www.facebook.com is treated the same as facebook.com (www. is stripped)."""
+    result = await analyze("https://www.facebook.com/mybusiness")
+
+    signal_types = [s.signal_type for s in result.gap_signals]
+    assert "social_as_website" in signal_types
+
+
+@pytest.mark.asyncio
+async def test_social_as_website_skips_http_fetch(httpx_mock):
+    """Social URL returns immediately — no HTTP request is ever made."""
+    # httpx_mock will raise AssertionError if any request is made
+    result = await analyze("https://facebook.com/mybusiness")
+
+    # If we get here without httpx_mock complaining, no fetch was made
+    assert result.has_hard_signal is True

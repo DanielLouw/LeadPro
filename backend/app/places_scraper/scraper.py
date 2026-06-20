@@ -73,6 +73,9 @@ async def _fetch_query(client: httpx.AsyncClient, query: str, limit: int) -> lis
             if len(results) >= limit:
                 break
             details = await _fetch_details(client, place["place_id"])
+            # Drop permanently closed businesses before gap analysis — no signal to offer.
+            if details.get("business_status") in ("PERMANENTLY_CLOSED", "CLOSED_PERMANENTLY"):
+                continue
             city, state = _parse_city_state(place.get("formatted_address", ""))
             results.append(
                 RawBusiness(
@@ -100,7 +103,7 @@ async def _fetch_details(client: httpx.AsyncClient, place_id: str) -> dict:
             PLACES_DETAILS_URL,
             params={
                 "place_id": place_id,
-                "fields": "formatted_phone_number,website",
+                "fields": "formatted_phone_number,website,business_status",
                 "key": settings.GOOGLE_PLACES_API_KEY,
             },
         )

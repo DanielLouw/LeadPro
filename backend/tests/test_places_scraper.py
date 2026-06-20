@@ -219,3 +219,134 @@ def test_default_max_results_is_10():
     from app.config import DEFAULT_MAX_RESULTS_PER_RUN
 
     assert DEFAULT_MAX_RESULTS_PER_RUN == 10
+
+
+# ---------------------------------------------------------------------------
+# Feature: business_status filter — permanently closed places are excluded
+# ---------------------------------------------------------------------------
+
+
+def details_response_with_status(
+    phone: str | None = "(555) 123-4567",
+    website: str | None = "https://example.com",
+    business_status: str | None = None,
+) -> dict:
+    """Build a Details API response that may include business_status."""
+    result: dict = {}
+    if phone:
+        result["formatted_phone_number"] = phone
+    if website:
+        result["website"] = website
+    if business_status is not None:
+        result["business_status"] = business_status
+    return {"result": result}
+
+
+@pytest.mark.asyncio
+async def test_permanently_closed_place_excluded(httpx_mock: HTTPXMock):
+    """Place with business_status 'PERMANENTLY_CLOSED' is not returned in results."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1]),
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response_with_status(business_status="PERMANENTLY_CLOSED"),
+        )
+
+        results = await scrape_queries(["plumbers in Springfield IL"])
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_closed_permanently_variant_excluded(httpx_mock: HTTPXMock):
+    """Place with business_status 'CLOSED_PERMANENTLY' is also excluded (legacy variant)."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1]),
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response_with_status(business_status="CLOSED_PERMANENTLY"),
+        )
+
+        results = await scrape_queries(["plumbers in Springfield IL"])
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_operational_place_included(httpx_mock: HTTPXMock):
+    """Place with business_status 'OPERATIONAL' is returned normally."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1]),
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response_with_status(business_status="OPERATIONAL"),
+        )
+
+        results = await scrape_queries(["plumbers in Springfield IL"])
+
+    assert len(results) == 1
+    assert results[0].external_id == PLACE_ID_1
+
+
+@pytest.mark.asyncio
+async def test_missing_business_status_included(httpx_mock: HTTPXMock):
+    """Place without business_status field in details is included (safe default)."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1]),
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response(),  # no business_status
+        )
+
+        results = await scrape_queries(["plumbers in Springfield IL"])
+
+    assert len(results) == 1
+    assert results[0].external_id == PLACE_ID_1
+
+
+@pytest.mark.asyncio
+async def test_closed_place_does_not_block_open_places(httpx_mock: HTTPXMock):
+    """Closed place is skipped while open places in the same query are still returned."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1, PLACE_ID_2]),
+        )
+        # First place is permanently closed
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response_with_status(business_status="PERMANENTLY_CLOSED"),
+        )
+        # Second place is operational
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response_with_status(business_status="OPERATIONAL"),
+        )
+
+        results = await scrape_queries(["plumbers in Springfield IL"])
+
+    assert len(results) == 1
+    assert results[0].external_id == PLACE_ID_2
