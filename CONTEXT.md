@@ -8,7 +8,8 @@ A detectable technical deficiency in a business's web presence that indicates a 
 
 **Hard gap signals (any one qualifies the business as a Lead):**
 - No website → Website Build
-- Website is broken or parked → Website Build
+- Website is broken (HTTP error or network failure) → Website Build
+- Website domain is parked (redirects to a domain registrar/parking service) → Website Build
 - Social URL as website → Website Build
 - No HTTPS → Website Build
 - Mobile PageSpeed score below 50 → Website Modernisation
@@ -30,7 +31,7 @@ A detectable technical deficiency in a business's web presence that indicates a 
 
 ## Service
 A fixed category of work the user sells to a Lead, derived from that Lead's Gap Signals. Each Gap Signal maps to exactly one Service. The catalogue:
-- **Website Build** — for businesses with no website, a broken/parked site, a social URL used as a website, or no HTTPS
+- **Website Build** — for businesses with no website, a broken site, a parked domain, a social URL used as a website, or no HTTPS
 - **Website Modernisation** — for businesses whose site is slow, fails Core Web Vitals, or lacks mobile fundamentals
 - **SEO Package** — for businesses whose site is invisible to search engines, lacks social sharing metadata, has no analytics instrumentation, or has structural on-page SEO gaps
 

@@ -2,7 +2,7 @@
 
 Research into how to verify lead contact data is accurate and actionable, prioritised by cost (free first).
 
-> Tier 0 decisions made 2026-06-20. Tier 1+ still TBD.
+> Tier 0 decisions made 2026-06-20. Tier 1 website liveness decisions made 2026-06-21. Remaining Tier 1+ still TBD.
 
 ---
 
@@ -80,7 +80,7 @@ Known parking redirect domains to detect: GoDaddy, Sedo, ParkingCrew, HugeDomain
 - Accuracy: High — directly observable
 - Complexity: Trivial
 - Note: **Highest ROI verification step.** Immediately reveals dead sites, parked pages, and FB-as-website, all of which are core scoring signals.
-- **Viability:** TBD
+- **Viability: Build it** — emits `parked_domain` (distinct hard signal, dynamic description including registrar name) and catches redirect-to-social as `social_as_website`. Detection via redirect-URL matching only; no content-based detection. See ADR-0011.
 
 ---
 
