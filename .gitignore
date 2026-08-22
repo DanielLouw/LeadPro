@@ -26,3 +26,6 @@ frontend/dist/
 # Claude Code (local settings/worktrees stay personal; launch.json is shared)
 .claude/*
 !.claude/launch.json
+
+# Lavish prototypes — local review artifacts, not shipped code
+.lavish/

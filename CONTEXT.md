@@ -81,5 +81,20 @@ A persistent dashboard widget showing how much of each monthly source budget has
 User-editable monthly spend limits per source group: one limit for Google Places API and one shared limit for all Apify actors. Defaulting to $200.00 (Google Places) and $5.00 (Apify). Updated by the user when their plan changes — no redeployment required.
 
 ## Lead Status
-A user-assigned state on a Lead after review. Tracks the user's outreach workflow.
+A user-assigned state on a Lead after review. Tracks the user's triage workflow within Lead Discovery — has this Lead been looked at, and is it worth pursuing at all. Distinct from Pipeline Stage, which only applies once a Lead becomes a Deal.
 Values: `new` → `reviewing` → `contacted` | `pass`
+
+## Lead Discovery
+The part of the app where Leads are found (via scraping Runs), scored by Gap Signal, and triaged by Lead Status. Distinct from the Pipeline, which tracks Deals.
+
+## Deal
+A record tracked through the sales Pipeline, separate from a Lead. Created either by promoting an existing Lead into the Pipeline, or by adding a standalone Deal directly (manual entry or import) with no originating Lead. A Deal that did originate from a Lead keeps an optional reference back to it; standalone Deals have none.
+
+## Pipeline
+The part of the app where Deals are tracked through Pipeline Stages on a Kanban board, separate from Lead Discovery. A Deal belongs to exactly one of several Pipelines (e.g. Appointment Setting, Sales — see [0012](docs/adr/0012-team-member-roster-not-accounts.md) for how Deals are assigned within a Pipeline), each with its own ordered list of Pipeline Stages. Moving a Deal from one Pipeline to another is an explicit hand-off action, not a normal stage change.
+
+## Team Member
+A named person a Deal can be assigned to. Not a user account — Team Members have no login credentials and are unrelated to the app's single shared password (see [0012](docs/adr/0012-team-member-roster-not-accounts.md)). Managed via a simple roster (add/rename/deactivate), not a registration flow.
+
+## Package
+A bundled sales offering a Deal can be marked with — e.g. Starter, Growth, Complete (names and prices still being finalized). Distinct from Service: Service is a technical category mechanically derived from a Lead's Gap Signals in Lead Discovery; Package is what's actually being sold in the Pipeline, and is managed as editable rows (name + default price), not a fixed enum, since pricing is still in flux. A Deal's `amount` defaults from the selected Package's default price but is always hand-editable.
