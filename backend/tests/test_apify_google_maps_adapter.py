@@ -315,6 +315,79 @@ async def test_fetch_skips_items_with_missing_place_id():
 
 
 # ---------------------------------------------------------------------------
+# Cycle 6b: fetch() excludes items with fewer than 10 reviews (owner-approved
+# 2026-08-22 — mirrors the existing closed-business skip)
+# ---------------------------------------------------------------------------
+
+async def test_fetch_populates_rating_and_review_count():
+    """RawBusiness.rating/review_count are populated from totalScore/reviewsCount."""
+    items = [make_apify_item() | {"totalScore": 4.5, "reviewsCount": 25}]
+    mock_client = make_apify_client(items=items)
+
+    adapter = ApifyGoogleMapsAdapter()
+    source_config = {"search_term": "plumbers", "city": "Austin", "state": "TX"}
+
+    with patch("app.lead_pipeline.adapters.settings") as mock_settings:
+        mock_settings.APIFY_API_KEY = "test_key"
+        results = await adapter.fetch(
+            source_config=source_config,
+            max_results=10,
+            _apify_client=mock_client,
+            _poll_interval=0,
+        )
+
+    assert len(results) == 1
+    assert results[0].rating == 4.5
+    assert results[0].review_count == 25
+
+
+async def test_fetch_excludes_item_with_fewer_than_ten_reviews():
+    """An item with reviewsCount below 10 is dropped before it becomes a RawBusiness."""
+    items = [
+        make_apify_item(place_id="ChIJfew001") | {"reviewsCount": 9},
+        make_apify_item(place_id="ChIJgood001") | {"reviewsCount": 10},
+    ]
+    mock_client = make_apify_client(items=items)
+
+    adapter = ApifyGoogleMapsAdapter()
+    source_config = {"search_term": "plumbers", "city": "Austin", "state": "TX"}
+
+    with patch("app.lead_pipeline.adapters.settings") as mock_settings:
+        mock_settings.APIFY_API_KEY = "test_key"
+        results = await adapter.fetch(
+            source_config=source_config,
+            max_results=10,
+            _apify_client=mock_client,
+            _poll_interval=0,
+        )
+
+    assert len(results) == 1
+    assert results[0].external_id == "ChIJgood001"
+
+
+async def test_fetch_includes_item_with_missing_reviews_count():
+    """An item with no reviewsCount field is included — unknown count is a safe default,
+    not an exclusion."""
+    items = [make_apify_item(place_id="ChIJnoreviews001")]  # no reviewsCount key
+    mock_client = make_apify_client(items=items)
+
+    adapter = ApifyGoogleMapsAdapter()
+    source_config = {"search_term": "plumbers", "city": "Austin", "state": "TX"}
+
+    with patch("app.lead_pipeline.adapters.settings") as mock_settings:
+        mock_settings.APIFY_API_KEY = "test_key"
+        results = await adapter.fetch(
+            source_config=source_config,
+            max_results=10,
+            _apify_client=mock_client,
+            _poll_interval=0,
+        )
+
+    assert len(results) == 1
+    assert results[0].review_count is None
+
+
+# ---------------------------------------------------------------------------
 # Cycle 7: ConfigurationError when APIFY_API_KEY is absent
 # ---------------------------------------------------------------------------
 

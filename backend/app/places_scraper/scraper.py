@@ -76,6 +76,11 @@ async def _fetch_query(client: httpx.AsyncClient, query: str, limit: int) -> lis
             # Drop permanently closed businesses before gap analysis — no signal to offer.
             if details.get("business_status") in ("PERMANENTLY_CLOSED", "CLOSED_PERMANENTLY"):
                 continue
+            # Drop businesses with too few reviews to be a viable sales target — but
+            # only when the count is known; missing data is not treated as exclusion.
+            review_count = details.get("user_ratings_total")
+            if review_count is not None and review_count < 10:
+                continue
             city, state = _parse_city_state(place.get("formatted_address", ""))
             results.append(
                 RawBusiness(
@@ -87,6 +92,8 @@ async def _fetch_query(client: httpx.AsyncClient, query: str, limit: int) -> lis
                     phone=details.get("formatted_phone_number"),
                     website_url=details.get("website"),
                     maps_url=f"https://www.google.com/maps/place/?q=place_id:{place['place_id']}",
+                    rating=details.get("rating"),
+                    review_count=details.get("user_ratings_total"),
                 )
             )
 
@@ -103,7 +110,7 @@ async def _fetch_details(client: httpx.AsyncClient, place_id: str) -> dict:
             PLACES_DETAILS_URL,
             params={
                 "place_id": place_id,
-                "fields": "formatted_phone_number,website,business_status",
+                "fields": "formatted_phone_number,website,business_status,rating,user_ratings_total",
                 "key": settings.GOOGLE_PLACES_API_KEY,
             },
         )

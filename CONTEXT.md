@@ -1,7 +1,7 @@
 # LeadPro — Domain Glossary
 
 ## Lead
-A US-based local business returned by a scraping run that has passed the gap filter — i.e. it has at least one hard Gap Signal. Businesses with no detectable gap are excluded from the pipeline.
+A US-based local business returned by a scraping run that has passed the gap filter — i.e. it has at least one hard Gap Signal. Businesses with no detectable gap are excluded from the pipeline. A business with a known Google review count below 10 is dropped before gap analysis even runs and can never become a Lead by any path — too new/unverified to be a viable sales target, regardless of what other signals it might have. Unknown review count (source doesn't report it) is not treated as an exclusion.
 
 ## Gap Signal
 A detectable technical deficiency in a business's web presence that indicates a service opportunity. Hard gap signals qualify a business as a Lead. Soft signals contribute to the Gap Score but do not qualify alone. Each signal maps to exactly one Service.
@@ -13,6 +13,7 @@ A detectable technical deficiency in a business's web presence that indicates a 
 - Social URL as website → Website Build
 - No HTTPS → Website Build
 - Mobile PageSpeed score below 50 → Website Modernisation
+- Google review count between 10 and 50 (inclusive) — established but still building local search visibility → SEO Package
 
 **Soft gap signals (add to Gap Score only):**
 - Missing meta title or description → SEO Package
