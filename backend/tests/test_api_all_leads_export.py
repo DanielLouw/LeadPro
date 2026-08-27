@@ -124,6 +124,17 @@ def test_export_contains_required_columns(client, test_db):
     assert required.issubset(set(rows[0].keys()))
 
 
+def test_export_includes_website_url(client, test_db):
+    """CSV includes a website_url column with each lead's actual URL (or blank)."""
+    _seed(test_db)
+    resp = client.get("/api/leads/export")
+    rows = _parse_csv(resp.text)
+    assert "website_url" in rows[0].keys()
+    by_name = {r["name"]: r["website_url"] for r in rows}
+    assert by_name["Beta HVAC"] == "https://beta.com"
+    assert by_name["Alpha Plumber"] == ""
+
+
 def test_export_filters_by_status(client, test_db):
     """?statuses=new returns only leads with status=new."""
     _seed(test_db)

@@ -184,7 +184,7 @@ def export_all_leads_csv(
     output = io.StringIO()
     writer = csv.DictWriter(
         output,
-        fieldnames=["name", "address", "city", "state", "phone", "email", "gap_score", "gap_signals", "status", "notes"],
+        fieldnames=["name", "address", "city", "state", "website_url", "phone", "email", "gap_score", "gap_signals", "status", "notes"],
     )
     writer.writeheader()
     for lead in query.all():
@@ -193,6 +193,7 @@ def export_all_leads_csv(
             "address": lead.address or "",
             "city": lead.city or "",
             "state": lead.state or "",
+            "website_url": lead.website_url or "",
             "phone": lead.phone or "",
             "email": lead.email or "",
             "gap_score": lead.gap_score,
@@ -294,7 +295,7 @@ def export_leads_csv(run_id: int, db: Session = Depends(get_db)):
     output = io.StringIO()
     writer = csv.DictWriter(
         output,
-        fieldnames=["name", "address", "city", "state", "phone", "email", "gap_score", "gap_signals", "status", "notes"],
+        fieldnames=["name", "address", "city", "state", "website_url", "phone", "email", "gap_score", "gap_signals", "status", "notes"],
     )
     writer.writeheader()
     for lead in leads:
@@ -305,6 +306,7 @@ def export_leads_csv(run_id: int, db: Session = Depends(get_db)):
                 "address": lead.address or "",
                 "city": lead.city or "",
                 "state": lead.state or "",
+                "website_url": lead.website_url or "",
                 "phone": lead.phone or "",
                 "email": lead.email or "",
                 "gap_score": lead.gap_score,
