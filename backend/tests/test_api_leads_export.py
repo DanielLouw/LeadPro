@@ -182,6 +182,18 @@ def test_export_csv_field_values_are_correct(client, test_db):
 # ---------------------------------------------------------------------------
 
 
+def test_export_includes_website_url(client, test_db):
+    """CSV includes a website_url column with each lead's actual URL (or blank)."""
+    run_id, _ = _seed_run_with_leads(test_db)
+
+    resp = client.get(f"/api/runs/{run_id}/leads/export")
+
+    rows = _parse_csv(resp.text)
+    by_name = {r["name"]: r["website_url"] for r in rows}
+    assert by_name["Beta Plumber"] == "https://beta.example.com"
+    assert by_name["Alpha Plumber"] == ""
+
+
 def test_export_gap_signals_comma_separated(client, test_db):
     """Gap signal descriptions are joined with ', ' (comma-space)."""
     run_id, _ = _seed_run_with_leads(test_db)

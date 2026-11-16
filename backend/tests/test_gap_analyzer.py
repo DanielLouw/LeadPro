@@ -5,7 +5,7 @@ import pytest
 import httpx
 from unittest.mock import patch
 
-from app.gap_analyzer.analyzer import analyze
+from app.gap_analyzer.analyzer import analyze, analyze_review_signals
 from app.config import settings
 
 
@@ -1182,3 +1182,54 @@ async def test_social_as_website_skips_http_fetch(httpx_mock):
 
     # If we get here without httpx_mock complaining, no fetch was made
     assert result.has_hard_signal is True
+
+
+# ---------------------------------------------------------------------------
+# Feature: few_google_reviews — 10-50 review band (owner-approved 2026-08-22)
+# ---------------------------------------------------------------------------
+
+
+def test_review_signal_fires_mid_band_above_old_threshold():
+    """review_count == 30 fires the signal under the new 10-50 band (the old <20
+    threshold would have excluded this — proves the band replaced it, not just
+    narrowed it)."""
+    signals = analyze_review_signals(30)
+
+    assert len(signals) == 1
+    assert signals[0].signal_type == "few_google_reviews"
+    assert signals[0].is_hard is True
+
+
+@pytest.mark.parametrize("review_count", [10, 50])
+def test_review_signal_fires_at_band_boundaries(review_count):
+    """Both edges of the 10-50 band are inclusive."""
+    signals = analyze_review_signals(review_count)
+
+    assert len(signals) == 1
+
+
+@pytest.mark.parametrize("review_count", [9, 51])
+def test_review_signal_absent_just_outside_band(review_count):
+    """One review below/above the band does not fire — the exclusion filter
+    handles <10 upstream; this function just shouldn't double-fire for it."""
+    signals = analyze_review_signals(review_count)
+
+    assert signals == []
+
+
+def test_review_signal_absent_when_count_unknown():
+    """review_count of None (source doesn't report it) fires no signal."""
+    signals = analyze_review_signals(None)
+
+    assert signals == []
+
+
+def test_review_signal_description_reflects_band_not_old_threshold():
+    """Description text describes the 10-50 band, not the retired '<20' wording,
+    and still includes the actual count for sales-copy context."""
+    signals = analyze_review_signals(30)
+
+    assert "20" not in signals[0].description
+    assert "10" in signals[0].description
+    assert "50" in signals[0].description
+    assert "30 reviews" in signals[0].description

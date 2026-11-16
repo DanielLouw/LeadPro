@@ -195,6 +195,10 @@ class ApifyGoogleMapsAdapter:
                 if item.get("permanentlyClosed") or item.get("temporarilyClosed"):
                     logger.debug("ApifyGoogleMaps: skipping closed business %r", item.get("title"))
                     continue
+                review_count = item.get("reviewsCount")
+                if review_count is not None and review_count < 10:
+                    logger.debug("ApifyGoogleMaps: skipping low-review business %r", item.get("title"))
+                    continue
                 results.append(
                     RawBusiness(
                         external_id=place_id,

@@ -324,6 +324,118 @@ async def test_missing_business_status_included(httpx_mock: HTTPXMock):
     assert results[0].external_id == PLACE_ID_1
 
 
+def details_response_with_reviews(
+    phone: str | None = "(555) 123-4567",
+    website: str | None = "https://example.com",
+    rating: float | None = None,
+    user_ratings_total: int | None = None,
+) -> dict:
+    """Build a Details API response that may include rating/user_ratings_total."""
+    result: dict = {}
+    if phone:
+        result["formatted_phone_number"] = phone
+    if website:
+        result["website"] = website
+    if rating is not None:
+        result["rating"] = rating
+    if user_ratings_total is not None:
+        result["user_ratings_total"] = user_ratings_total
+    return {"result": result}
+
+
+@pytest.mark.asyncio
+async def test_details_request_asks_for_rating_and_review_fields(httpx_mock: HTTPXMock):
+    """The outgoing Details request's `fields` param must actually include
+    rating/user_ratings_total — a URL-pattern-only mock would still pass even if
+    a future edit silently dropped these from the request, so this checks the
+    real outgoing query params instead of just the mocked response shape."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1]),
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response(),
+        )
+
+        await scrape_queries(["plumbers in Springfield IL"])
+
+    details_requests = [r for r in httpx_mock.get_requests() if "details/json" in str(r.url)]
+    assert len(details_requests) == 1
+    fields_param = details_requests[0].url.params.get("fields")
+    assert "rating" in fields_param.split(",")
+    assert "user_ratings_total" in fields_param.split(",")
+
+
+@pytest.mark.asyncio
+async def test_business_with_ten_reviews_included_and_populated(httpx_mock: HTTPXMock):
+    """Place with 10 reviews (the inclusive floor) is included, with rating/review_count
+    populated onto RawBusiness from the Details API response."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1]),
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response_with_reviews(rating=4.2, user_ratings_total=10),
+        )
+
+        results = await scrape_queries(["plumbers in Springfield IL"])
+
+    assert len(results) == 1
+    assert results[0].review_count == 10
+    assert results[0].rating == 4.2
+
+
+@pytest.mark.asyncio
+async def test_business_with_nine_reviews_excluded(httpx_mock: HTTPXMock):
+    """Place with fewer than 10 reviews is dropped before gap analysis."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1]),
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response_with_reviews(user_ratings_total=9),
+        )
+
+        results = await scrape_queries(["plumbers in Springfield IL"])
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_business_with_unknown_review_count_included(httpx_mock: HTTPXMock):
+    """Place with no user_ratings_total field in the Details response is included
+    (unknown review count is not treated as an exclusion — safe default, same as
+    the missing business_status case)."""
+    with patch("app.config.settings.GOOGLE_PLACES_API_KEY", "test-key"):
+        httpx_mock.add_response(
+            method="GET",
+            url=TEXT_SEARCH_RE,
+            json=text_search_response([PLACE_ID_1]),
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=DETAILS_RE,
+            json=details_response(),  # no rating / user_ratings_total
+        )
+
+        results = await scrape_queries(["plumbers in Springfield IL"])
+
+    assert len(results) == 1
+    assert results[0].review_count is None
+
+
 @pytest.mark.asyncio
 async def test_closed_place_does_not_block_open_places(httpx_mock: HTTPXMock):
     """Closed place is skipped while open places in the same query are still returned."""

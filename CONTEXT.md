@@ -1,7 +1,7 @@
 # LeadPro — Domain Glossary
 
 ## Lead
-A US-based local business returned by a scraping run that has passed the gap filter — i.e. it has at least one hard Gap Signal. Businesses with no detectable gap are excluded from the pipeline.
+A US-based local business returned by a scraping run that has passed the gap filter — i.e. it has at least one hard Gap Signal. Businesses with no detectable gap are excluded from the pipeline. A business with a known Google review count below 10 is dropped before gap analysis even runs and can never become a Lead by any path — too new/unverified to be a viable sales target, regardless of what other signals it might have. Unknown review count (source doesn't report it) is not treated as an exclusion. Qualification happens once, at discovery: a Lead whose Gap Signals have all been fixed by the time of a later Re-verification remains a Lead, but has no Findings and so is not eligible for a Campaign.
 
 ## Gap Signal
 A detectable technical deficiency in a business's web presence that indicates a service opportunity. Hard gap signals qualify a business as a Lead. Soft signals contribute to the Gap Score but do not qualify alone. Each signal maps to exactly one Service.
@@ -13,6 +13,7 @@ A detectable technical deficiency in a business's web presence that indicates a 
 - Social URL as website → Website Build
 - No HTTPS → Website Build
 - Mobile PageSpeed score below 50 → Website Modernisation
+- Google review count between 10 and 50 (inclusive) — established but still building local search visibility → SEO Package
 
 **Soft gap signals (add to Gap Score only):**
 - Missing meta title or description → SEO Package
@@ -39,7 +40,39 @@ A fixed category of work the user sells to a Lead, derived from that Lead's Gap 
 A numerical ranking assigned to a Lead based on the severity and number of Gap Signals detected. Higher score = more obvious problems = higher priority for outreach. Hard signals are weighted above soft signals.
 
 ## Contact Record
-The minimum viable data captured per Lead: business name, phone number, address. Email is captured as best-effort. A named decision-maker is a future enhancement.
+The minimum viable data captured per Lead: business name, phone number, address. Email is captured as best-effort and is the business's general address. The person to address is the Lead's Decision Maker, when one is known.
+
+## Decision Maker
+The one named person at a Lead's business that outreach is addressed to — typically the owner — with a name, a role and, when known, their own email address. A Lead has at most one. Supplied by Enrichment or entered by hand. A Decision Maker's name is **trusted** when Enrichment verified it against the business's own website or the user typed it in; only a trusted name is used to greet someone, and a name guessed from a mailbox address is never trusted.
+_Avoid_: contact, owner, prospect
+
+## Enrichment
+The step that looks at a Lead's own website to find its Decision Maker and email addresses. Enrichment happens outside LeadPro and its results are brought in afterwards, attached to the Leads they were produced for. Distinct from a Lead Source, which discovers businesses rather than adding detail to ones already found.
+
+## Outreach Address
+The single email address a Lead would be emailed at: the Decision Maker's own address when there is one, otherwise the business's general address. It is either **direct** (belongs to a named person or is specific to that business) or a **generic inbox** (info@, office@ and similar). A Lead with no Outreach Address cannot be in a Campaign.
+
+## Re-verification
+Checking a Lead's website again to find out which of its Gap Signals are still true today, replacing the stored signals and Gap Score with the current result. Covers website-derived signals only; the Google review count is not re-checked and keeps the date of the Run that captured it.
+_Avoid_: re-scan, refresh, re-run
+
+## Finding
+A Gap Signal restated as a sentence written for the business owner, describing the problem by its effect on their customers ("browsers label your site Not secure") rather than its technical cause. A Finding exists only while its Gap Signal is still true as of the last Re-verification; a review-count Finding additionally expires 90 days after the Run that captured the count. Not every Gap Signal has a Finding — signals an owner would not recognise as a problem (no sitemap, no robots.txt) have none. A Lead's Findings are ordered by how visible the problem is to the owner's customers, and the first one opens the email.
+_Avoid_: issue, problem, pitch line
+
+## Campaign
+A named batch of Leads committed to one round of email outreach at the same time. LeadPro decides who is in a Campaign and what Findings are quoted to each; the email copy, sending and replies live in the outreach tool, not in LeadPro. A Campaign is permanent once confirmed — individual Leads can be removed from it, but the Campaign itself cannot be deleted.
+_Avoid_: sequence, blast, export, pipeline
+
+## Campaign Eligibility
+The conditions a Lead must meet to be put in a Campaign: Lead Status is `new` or `reviewing`; it has an Outreach Address; it has at least one Finding; it has no match on the Do-Not-Contact List; and its business has no Outreach History in the last 90 days. The 90-day condition alone may be overridden by the user; the others may not.
+
+## Outreach History
+The record that a business was included in a Campaign, kept against the business's email address and website domain rather than against a Lead. Because the same business can be discovered again by a later Run as a different Lead, Outreach History is what stops it being emailed twice. Removing a Lead from a Campaign removes the Outreach History that Campaign created.
+
+## Do-Not-Contact List
+Email addresses and website domains that must never be put in a Campaign, because the recipient opted out, the address bounced, or the user decided so. An entry blocks its exact address and every address at the same domain — except where the domain is a shared email provider (gmail.com, yahoo.com and similar), in which case only the exact address is blocked. Like Outreach History, it belongs to the business, not to a Lead.
+_Avoid_: suppression list, blacklist, unsubscribes
 
 ## Lead Source
 The system responsible for supplying raw business records to the pipeline. Each Run has exactly one Lead Source. Supported sources:
@@ -83,6 +116,7 @@ User-editable monthly spend limits per source group: one limit for Google Places
 ## Lead Status
 A user-assigned state on a Lead after review. Tracks the user's triage workflow within Lead Discovery — has this Lead been looked at, and is it worth pursuing at all. Distinct from Pipeline Stage, which only applies once a Lead becomes a Deal.
 Values: `new` → `reviewing` → `contacted` | `pass`
+A Lead becomes `contacted` when it is confirmed into a Campaign — the commitment to email it, not the moment the email is sent — and returns to `reviewing` if it is removed from that Campaign. Businesses that are not sales targets at all (suppliers, trade associations) are marked `pass` by the user.
 
 ## Lead Discovery
 The part of the app where Leads are found (via scraping Runs), scored by Gap Signal, and triaged by Lead Status. Distinct from the Pipeline, which tracks Deals.

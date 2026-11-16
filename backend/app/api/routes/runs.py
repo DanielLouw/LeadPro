@@ -246,7 +246,7 @@ def export_leads_csv(
     output = io.StringIO()
     writer = csv.DictWriter(
         output,
-        fieldnames=["name", "address", "phone", "email", "gap_score", "gap_signals", "status", "notes"],
+        fieldnames=["name", "address", "website_url", "phone", "email", "gap_score", "gap_signals", "status", "notes"],
     )
     writer.writeheader()
     for lead in leads:
@@ -255,6 +255,7 @@ def export_leads_csv(
             {
                 "name": lead.name,
                 "address": lead.address or "",
+                "website_url": lead.website_url or "",
                 "phone": lead.phone or "",
                 "email": lead.email or "",
                 "gap_score": lead.gap_score,

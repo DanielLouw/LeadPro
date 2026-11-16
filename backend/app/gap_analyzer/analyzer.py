@@ -6,6 +6,10 @@ Hard signals (any one qualifies the business as a Lead):
   - broken_website
   - no_https
   - low_pagespeed (mobile score < 50)
+  - social_as_website
+  - few_google_reviews (10-50 reviews, inclusive — below 10 is excluded before
+    ever reaching this module, see places_scraper/scraper.py and
+    lead_pipeline/adapters.py)
 
 Soft signals (contribute to Gap Score only):
   - missing_meta_title
@@ -33,7 +37,7 @@ HARD_SIGNALS = {
     "broken_website": "Website is broken or unreachable",
     "no_https": "Website does not use HTTPS",
     "low_pagespeed": "Mobile PageSpeed score below 50",
-    "few_google_reviews": "Fewer than 20 Google reviews — minimal local search visibility",
+    "few_google_reviews": "Between 10 and 50 Google reviews — established but still building local search visibility",
     "social_as_website": "Website URL points to a social media or directory page, not a real website",
 }
 
@@ -168,13 +172,12 @@ SIGNAL_SALES_COPY: dict[str, str] = {
         "blocking the main thread and eliminates the delay."
     ),
     "few_google_reviews": (
-        "This business has fewer than 20 Google reviews, which puts them at a serious "
-        "disadvantage in local search — Google's algorithm favours businesses with "
-        "strong review volume, and most consumers won't trust a business they can't "
-        "verify through social proof. Competitors with more reviews will consistently "
-        "rank above them and convert at higher rates. An SEO Package that includes "
-        "review generation strategy and Google Business Profile optimisation can close "
-        "this gap quickly and create visible results within weeks."
+        "This business has between 10 and 50 Google reviews — enough to confirm it's "
+        "a real, established business, but still well short of the review volume "
+        "Google's algorithm rewards in local search. Competitors with a larger review "
+        "base will consistently rank above them and convert at higher rates. An SEO "
+        "Package that includes review generation strategy and Google Business Profile "
+        "optimisation can close this gap quickly and create visible results within weeks."
     ),
     "social_as_website": (
         "This business is using a Facebook page (or similar social/directory profile) "
@@ -240,8 +243,8 @@ class AnalysisResult:
 
 
 def analyze_review_signals(review_count: int | None) -> list[GapSignalResult]:
-    """Return gap signals derived from Google review count (Apify-sourced data)."""
-    if review_count is None or review_count >= 20:
+    """Return gap signals derived from Google review count."""
+    if review_count is None or not (10 <= review_count <= 50):
         return []
     return [
         GapSignalResult(
